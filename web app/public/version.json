@@ -1,19 +1,20 @@
 {
-  "version": "5.5.8",
-  "name": "Quick Pill 5.5.8",
-  "releaseDate": "2026-10-22",
+  "version": "5.5.9",
+  "name": "Quick Pill 5.5.9",
+  "releaseDate": "2026-10-26",
   "mandatory": false,
   "minSupportedVersion": "4.0.0",
   "changelog": [
-    "Feature: Hovering a notification banner now jumps straight into the Notifications module instead of the default tab.",
-    "Feature: Notifications can be swiped upwards to dismiss them - both the banner and the rows in the notification centre - with a little dust puff on the way out.",
-    "Feature: New global shortcut Alt+Shift+D ('Dismiss Notification') flicks the newest notification away without touching the mouse.",
-    "Feature: Clicking a notification now opens its target - the deep link of the notification when it has one, otherwise the app that produced it (an already running window is activated first).",
-    "Polish: The notification model keeps the optional deep link of a notification so web and mail notifications can open the right page."
+    "Fix: Click-through parity in Tauri - area around the pill is now completely non-blocking and pass-through when minimized or idle.",
+    "Fix: Prevent extra console/terminal window from opening when launched via Windows subsystem.",
+    "Polish: Replaced placeholder icon with crisp high-resolution Quick Pill app, taskbar, and tray icons.",
+    "Performance: Zero CPU usage when idle (quiet rendering, smart minute-only clock updates, eliminated background polling churn).",
+    "Feature: Event-driven Windows GSMTC media notifications and battery charger change alerts (Menunggu, bukan terus mengecek).",
+    "Feature: File shelf now stores up to 100 items by path reference with zero in-memory payload copy."
   ],
   "platforms": {
     "win32-x64": {
-      "url": "https://github.com/pikri-beep/Quick-Pill-Dynamic-Island-for-Windows/releases/download/v5.5.8/QuickPill-Windows-v5.5.8-Setup.exe",
+      "url": "https://github.com/pikri-beep/Quick-Pill-Dynamic-Island-for-Windows/releases/download/v5.5.9/QuickPill-Windows-v5.5.9-Setup.exe",
       "sha256": "c5f8da0e8b11d623ed0ad670d565612f2a99a4eebaed458d20ff9db093fa1b64",
       "size": 135837444,
       "installerType": "nsis"

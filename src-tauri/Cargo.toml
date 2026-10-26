@@ -1,6 +1,6 @@
 [package]
 name = "quick-pill"
-version = "5.5.8"
+version = "5.5.9"
 description = "A Dynamic Island for Windows"
 authors = ["Abrar Nabil"]
 edition = "2021"
