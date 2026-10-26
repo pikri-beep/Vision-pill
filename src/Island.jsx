@@ -2804,8 +2804,8 @@ export default function Island() {
         const uniqueNewFiles = newFiles.filter(f => !f.path || !existingPaths.has(f.path));
         if (uniqueNewFiles.length === 0) return prev;
         const updated = [...uniqueNewFiles, ...prev];
-        localStorage.setItem("shelf-files", JSON.stringify(updated.slice(0, 20)));
-        return updated.slice(0, 20);
+        localStorage.setItem("shelf-files", JSON.stringify(updated.slice(0, 100)));
+        return updated.slice(0, 100);
       });
     };
 
@@ -3896,6 +3896,16 @@ export default function Island() {
       }
     })();
 
+    let unlistenNativeBattery = null;
+    if (window.electronAPI?.onBatteryChange) {
+      unlistenNativeBattery = window.electronAPI.onBatteryChange((data) => {
+        if (data) {
+          if (typeof data.percent === 'number') setPercent(data.percent);
+          if (typeof data.charging === 'boolean') setCharging(data.charging);
+        }
+      });
+    }
+
     return () => {
       if (battery && handler) {
         battery.removeEventListener("levelchange", handler);
@@ -3903,6 +3913,8 @@ export default function Island() {
         battery.removeEventListener("chargingtimechange", handler);
         battery.removeEventListener("dischargingtimechange", handler);
       }
+      if (typeof unlistenNativeBattery === 'function') unlistenNativeBattery();
+      else if (unlistenNativeBattery && typeof unlistenNativeBattery.then === 'function') unlistenNativeBattery.then(fn => fn?.());
     };
   }, []);
 
@@ -4123,8 +4135,9 @@ export default function Island() {
   }, [charging]);
 
 
-  // Get time
+  // Get time (optimized: only updates state when displayed HH:mm changes, 0% CPU idle)
   useEffect(() => {
+    let lastFormatted = "";
     const updateTime = () => {
       const date = new Date();
       let hours = date.getHours();
@@ -4133,10 +4146,14 @@ export default function Island() {
         hours = hours % 12;
         hours = hours ? hours : 12;
       }
-      setTime(`${hours}:${minutes}`);
+      const formatted = `${hours}:${minutes}`;
+      if (formatted !== lastFormatted) {
+        lastFormatted = formatted;
+        setTime(formatted);
+      }
     };
     updateTime();
-    const interval = setInterval(updateTime, 1000);
+    const interval = setInterval(updateTime, 5000);
     return () => clearInterval(interval);
   }, [hourFormat]);
 
@@ -4986,7 +5003,7 @@ export default function Island() {
     return () => clearInterval(timer);
   }, [spotifyTrack?.state, spotifyTrack?.duration]);
 
-  // Now Playing
+  // Now Playing (Event-driven + quiet idle: Menunggu, bukan terus mengecek)
   useEffect(() => {
     let inflightMedia = false;
     const fetchMedia = async () => {
@@ -5018,9 +5035,32 @@ export default function Island() {
     };
 
     fetchMedia();
-    const interval = setInterval(fetchMedia, 3000);
-    return () => clearInterval(interval);
-  }, []);
+
+    // Listen to push events from Windows GSMTC / native media watcher
+    let unlistenMedia = null;
+    if (window.electronAPI?.onMediaUpdate) {
+      unlistenMedia = window.electronAPI.onMediaUpdate((track) => {
+        if (track) {
+          setSpotifyTrack(track);
+        } else {
+          fetchMedia();
+        }
+      });
+    }
+
+    // Only poll when playing (for timeline scrubber) or when interactive; completely silent when idle
+    let interval = null;
+    const isQuietIdle = (mode === 'still' || mode === 'micro') && spotifyTrack?.state !== 'playing' && !isHovered;
+    if (!isQuietIdle) {
+      interval = setInterval(fetchMedia, 3000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+      if (typeof unlistenMedia === 'function') unlistenMedia();
+      else if (unlistenMedia && typeof unlistenMedia.then === 'function') unlistenMedia.then(fn => fn?.());
+    };
+  }, [mode, isHovered, spotifyTrack?.state]);
 
   useEffect(() => localStorage.setItem("tasks", JSON.stringify(tasks)), [tasks]);
 

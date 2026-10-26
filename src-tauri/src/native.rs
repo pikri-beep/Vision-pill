@@ -139,11 +139,79 @@ unsafe extern "system" fn notch_window_proc(
     }
 }
 
+#[cfg(windows)]
+static MAIN_HWND: AtomicPtr<std::ffi::c_void> = AtomicPtr::new(std::ptr::null_mut());
+
+#[cfg(windows)]
+pub fn set_main_hwnd(hwnd: windows::Win32::Foundation::HWND) {
+    MAIN_HWND.store(hwnd.0, Ordering::Relaxed);
+}
+
+#[cfg(windows)]
+pub fn get_main_hwnd() -> Option<windows::Win32::Foundation::HWND> {
+    let ptr = MAIN_HWND.load(Ordering::Relaxed);
+    if ptr.is_null() {
+        None
+    } else {
+        Some(windows::Win32::Foundation::HWND(ptr))
+    }
+}
+
+#[cfg(windows)]
+unsafe extern "system" fn set_child_transparent_proc(
+    child: windows::Win32::Foundation::HWND,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::BOOL {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TRANSPARENT,
+    };
+    let enable = lparam.0 != 0;
+    let current = GetWindowLongPtrW(child, GWL_EXSTYLE) as u32;
+    let new_style = if enable {
+        current | WS_EX_TRANSPARENT.0
+    } else {
+        current & !WS_EX_TRANSPARENT.0
+    };
+    if current != new_style {
+        SetWindowLongPtrW(child, GWL_EXSTYLE, new_style as isize);
+    }
+    windows::Win32::Foundation::BOOL(1)
+}
+
+#[cfg(windows)]
+pub fn set_window_click_through(hwnd: windows::Win32::Foundation::HWND, enable: bool) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumChildWindows, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TRANSPARENT,
+    };
+
+    unsafe {
+        let current = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+        let new_style = if enable {
+            current | WS_EX_TRANSPARENT.0
+        } else {
+            current & !WS_EX_TRANSPARENT.0
+        };
+        if current != new_style {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style as isize);
+        }
+
+        let _ = EnumChildWindows(
+            hwnd,
+            Some(set_child_transparent_proc),
+            windows::Win32::Foundation::LPARAM(if enable { 1 } else { 0 }),
+        );
+    }
+}
+
+#[cfg(not(windows))]
+pub fn set_window_click_through(_hwnd: (), _enable: bool) {}
+
 /// Install the click-through window procedure on the given window.
 #[cfg(windows)]
 pub fn install_click_through(hwnd: windows::Win32::Foundation::HWND) -> bool {
     use windows::Win32::UI::WindowsAndMessaging::{SetWindowLongPtrW, GWLP_WNDPROC};
 
+    set_main_hwnd(hwnd);
     unsafe {
         let previous = SetWindowLongPtrW(hwnd, GWLP_WNDPROC, notch_window_proc as *mut c_void as isize);
         if previous == 0 {

@@ -242,7 +242,9 @@ export function initBridge() {
     getCameraStatus: () => invoke('get_camera_status').catch(() => false),
     getMicrophoneStatus: () => invoke('get_microphone_status').catch(() => false),
     getSystemMetrics: () => invoke('get_system_metrics').catch(() => ({ cpu: 0, ram: 0 })),
+    onMediaUpdate: (cb) => createTauriListener('media:update', cb),
     getBatteryStatus: () => invoke('get_battery_status').catch(() => ({ percent: 100, charging: true })),
+    onBatteryChange: (cb) => createTauriListener('battery:changed', cb),
 
     openExternal: (url) => invoke('open_external', { url }).catch((e) => console.error('[Bridge] openExternal:', e)),
 

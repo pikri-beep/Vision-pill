@@ -194,10 +194,11 @@ fn set_ignore_mouse_events(
     ignore: bool,
     _forward: Option<bool>,
 ) -> Result<(), String> {
-    // Never call `set_ignore_cursor_events`: tao answers it by adding
-    // WS_EX_LAYERED and WebView2 stops compositing the notch. The window
-    // procedure answers WM_NCHITTEST with HTTRANSPARENT instead.
     native::set_ignore_cursor(ignore);
+    #[cfg(windows)]
+    if let Some(hwnd) = native::get_main_hwnd() {
+        native::set_window_click_through(hwnd, ignore);
+    }
     Ok(())
 }
 
@@ -2729,8 +2730,18 @@ fn start_cursor_hit_test_watcher(app_handle: tauri::AppHandle) {
             // Wait briefly for main window to stabilize
             std::thread::sleep(Duration::from_millis(500));
 
+            // Start in click-through mode so area around the idle pill is non-blocking
+            if let Some(hwnd) = native::get_main_hwnd() {
+                native::set_window_click_through(hwnd, true);
+            }
+
+            let mut tick = 0u32;
+            let mut cached_scale = 1.0f64;
+            let mut cached_win_pos = tauri::PhysicalPosition::new(0, 0);
+            let mut cached_win_size = tauri::PhysicalSize::new(520, 165);
+
             loop {
-                std::thread::sleep(Duration::from_millis(50));
+                std::thread::sleep(Duration::from_millis(20));
 
                 let Some(main_win) = app_handle.get_webview_window("main") else {
                     continue;
@@ -2746,15 +2757,20 @@ fn start_cursor_hit_test_watcher(app_handle: tauri::AppHandle) {
                     continue;
                 }
 
-                let scale = main_win.scale_factor().unwrap_or(1.0);
-                let win_pos = match main_win.outer_position() {
-                    Ok(p) => p,
-                    Err(_) => continue,
-                };
-                let win_size = match main_win.outer_size() {
-                    Ok(s) => s,
-                    Err(_) => continue,
-                };
+                tick = tick.wrapping_add(1);
+                if tick % 50 == 1 {
+                    cached_scale = main_win.scale_factor().unwrap_or(1.0);
+                    if let Ok(p) = main_win.outer_position() {
+                        cached_win_pos = p;
+                    }
+                    if let Ok(s) = main_win.outer_size() {
+                        cached_win_size = s;
+                    }
+                }
+
+                let scale = cached_scale;
+                let win_pos = cached_win_pos;
+                let win_size = cached_win_size;
 
                 let hitbox_w_logical = state.hitbox_width.load(Ordering::Relaxed) as f64;
                 let hitbox_h_logical = state.hitbox_height.load(Ordering::Relaxed) as f64;
@@ -2785,9 +2801,15 @@ fn start_cursor_hit_test_watcher(app_handle: tauri::AppHandle) {
 
                 if inside && !is_hovering {
                     is_hovering = true;
+                    if let Some(hwnd) = native::get_main_hwnd() {
+                        native::set_window_click_through(hwnd, false);
+                    }
                     let _ = main_win.emit("notch:cursor-enter", ());
                 } else if !inside && is_hovering {
                     is_hovering = false;
+                    if let Some(hwnd) = native::get_main_hwnd() {
+                        native::set_window_click_through(hwnd, true);
+                    }
                     let _ = main_win.emit("notch:cursor-leave", ());
                 }
             }
@@ -2895,6 +2917,54 @@ fn start_usb_watcher(app_handle: tauri::AppHandle) {
                 }
             }
             known = current_letters;
+        }
+    });
+}
+
+/// Native event-driven power watcher (charger plugged in / removed).
+#[cfg(windows)]
+fn start_power_watcher(app_handle: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let mut last_charging: Option<bool> = None;
+        let mut last_percent: Option<u64> = None;
+        loop {
+            std::thread::sleep(Duration::from_millis(1000));
+            let status = get_battery_status();
+            let charging = status.get("charging").and_then(|v| v.as_bool());
+            let percent = status.get("percent").and_then(|v| v.as_u64());
+            if charging != last_charging || percent != last_percent {
+                last_charging = charging;
+                last_percent = percent;
+                let _ = app_handle.emit("battery:changed", &status);
+            }
+        }
+    });
+}
+
+/// Native event-driven GSMTC media session watcher (song changed / playback toggled).
+#[cfg(windows)]
+fn start_native_media_watcher(app_handle: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
+        use windows::Foundation::TypedEventHandler;
+
+        std::thread::sleep(Duration::from_millis(1500));
+
+        if let Ok(manager_op) = GlobalSystemMediaTransportControlsSessionManager::RequestAsync() {
+            if let Ok(manager) = manager_op.get() {
+                let app_handle_ev = app_handle.clone();
+                let _ = manager.CurrentSessionChanged(&TypedEventHandler::new(
+                    move |_mgr: &Option<GlobalSystemMediaTransportControlsSessionManager>, _args| {
+                        let handle = app_handle_ev.clone();
+                        tauri::async_runtime::spawn(async move {
+                            if let Some(media) = fetch_system_media(handle.clone()).await {
+                                let _ = handle.emit("media:update", media);
+                            }
+                        });
+                        Ok(())
+                    },
+                ));
+            }
         }
     });
 }
@@ -3051,6 +3121,7 @@ pub fn run() {
                     // is passed on as a raw pointer.
                     let raw = windows::Win32::Foundation::HWND(hwnd.0 as *mut std::ffi::c_void);
                     native::install_click_through(raw);
+                    native::set_window_click_through(raw, true);
                 }
             }
 
@@ -3117,6 +3188,15 @@ pub fn run() {
 
             let app_handle_notif = handle.clone();
             notifications::start_notification_watcher(app_handle_notif);
+
+            #[cfg(windows)]
+            {
+                let app_handle_power = handle.clone();
+                start_power_watcher(app_handle_power);
+
+                let app_handle_media = handle.clone();
+                start_native_media_watcher(app_handle_media);
+            }
 
             // Updater events -> renderer
             if let Some(state) = handle.try_state::<AppState>() {
