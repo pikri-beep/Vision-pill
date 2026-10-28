@@ -162,6 +162,18 @@ export default function SettingsWindow() {
   const [islandBorder, setIslandBorder] = useState(() => localStorage.getItem('island-border') !== 'false');
   const [textColor, setTextColor] = useState(() => localStorage.getItem('text-color') || '#FFFFFF');
   const [bgColor, setBgColor] = useState(() => localStorage.getItem('bg-color') || '#000000');
+  const [glassmorphism, setGlassmorphism] = useState(() => localStorage.getItem('quickpill_glassmorphism') === 'true');
+  const [syncWallpaper, setSyncWallpaper] = useState(() => localStorage.getItem('quickpill_sync_wallpaper') === 'true');
+  const [glassBlur, setGlassBlur] = useState(() => {
+    const v = parseInt(localStorage.getItem('quickpill_glass_blur'), 10);
+    return isNaN(v) ? 12 : v;
+  });
+  const [glassOpacity, setGlassOpacity] = useState(() => {
+    const v = parseInt(localStorage.getItem('quickpill_glass_opacity'), 10);
+    return isNaN(v) ? 75 : v;
+  });
+  const [glassTint, setGlassTint] = useState(() => localStorage.getItem('quickpill_glass_tint') || '#18181b');
+  const [systemAccentColor, setSystemAccentColor] = useState('#38bdf8');
 
   // Smart Behavior
   const [minimalNotch, setMinimalNotch] = useState(false);
@@ -286,6 +298,7 @@ export default function SettingsWindow() {
     };
 
     safeRead(window.electronAPI?.getAppVersion, v => v && setAppVersion(v));
+    safeRead(window.electronAPI?.getAccentColor, val => val && setSystemAccentColor(val));
     safeRead(window.electronAPI?.getAutoLaunch, val => {
       if (typeof val === 'boolean') {
         setAutoLaunch(val);
@@ -589,9 +602,55 @@ export default function SettingsWindow() {
     window.electronAPI?.setPrivacyDots?.(val);
   };
 
+  const broadcastAppearanceChange = (updates = {}) => {
+    window.dispatchEvent(new CustomEvent('quickpill_appearance_changed', {
+      detail: {
+        glassmorphism: updates.glassmorphism !== undefined ? updates.glassmorphism : glassmorphism,
+        syncWallpaper: updates.syncWallpaper !== undefined ? updates.syncWallpaper : syncWallpaper,
+        glassBlur: updates.glassBlur !== undefined ? updates.glassBlur : glassBlur,
+        glassOpacity: updates.glassOpacity !== undefined ? updates.glassOpacity : glassOpacity,
+        glassTint: updates.glassTint !== undefined ? updates.glassTint : glassTint,
+        islandBorder: updates.islandBorder !== undefined ? updates.islandBorder : islandBorder,
+      }
+    }));
+  };
+
   const handleToggleIslandBorder = (val) => {
     setIslandBorder(val);
     localStorage.setItem('island-border', String(val));
+    broadcastAppearanceChange({ islandBorder: val });
+  };
+
+  const handleToggleGlassmorphism = (val) => {
+    setGlassmorphism(val);
+    localStorage.setItem('quickpill_glassmorphism', String(val));
+    broadcastAppearanceChange({ glassmorphism: val });
+  };
+
+  const handleToggleSyncWallpaper = (val) => {
+    setSyncWallpaper(val);
+    localStorage.setItem('quickpill_sync_wallpaper', String(val));
+    broadcastAppearanceChange({ syncWallpaper: val });
+  };
+
+  const handleGlassBlurChange = (val) => {
+    const num = Math.min(30, Math.max(0, Number(val)));
+    setGlassBlur(num);
+    localStorage.setItem('quickpill_glass_blur', String(num));
+    broadcastAppearanceChange({ glassBlur: num });
+  };
+
+  const handleGlassOpacityChange = (val) => {
+    const num = Math.min(100, Math.max(10, Number(val)));
+    setGlassOpacity(num);
+    localStorage.setItem('quickpill_glass_opacity', String(num));
+    broadcastAppearanceChange({ glassOpacity: num });
+  };
+
+  const handleGlassTintChange = (val) => {
+    setGlassTint(val);
+    localStorage.setItem('quickpill_glass_tint', val);
+    broadcastAppearanceChange({ glassTint: val });
   };
 
   // Sort modules dynamically according to tabOrder
@@ -1280,6 +1339,141 @@ export default function SettingsWindow() {
               </div>
 
               <div style={{ background: '#1c1c1f', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                <SettingRow
+                  title="Frosted Glassmorphism"
+                  desc="Translucent frosted glass with dynamic backdrop blur and illuminated edge glow (Default: Off)"
+                  checked={glassmorphism}
+                  onChange={handleToggleGlassmorphism}
+                  badge="Aesthetics"
+                />
+
+                {glassmorphism && (
+                  <>
+                    <SettingRow
+                      title="Sync with Wallpaper / Accent Color"
+                      desc="Automatically adapt notch tint to your active Windows wallpaper and system color"
+                      checked={syncWallpaper}
+                      onChange={handleToggleSyncWallpaper}
+                      badge={syncWallpaper ? "Adaptive" : undefined}
+                    />
+
+                    {syncWallpaper ? (
+                      <div style={{
+                        padding: '10px 16px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        <span style={{ fontSize: 11, color: '#9ca3af' }}>Current Active Theme Color</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            background: systemAccentColor || '#38bdf8',
+                            boxShadow: `0 0 10px ${systemAccentColor || '#38bdf8'}`
+                          }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#ffffff', fontFamily: 'monospace' }}>
+                            {systemAccentColor || '#38bdf8'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
+                        padding: '10px 16px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>Custom Glass Tint</span>
+                          <span style={{ fontSize: 10.5, color: '#9ca3af' }}>Select custom base tint color</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {['#000000', '#0f172a', '#1e1b4b', '#064e3b', '#701a75'].map((col) => (
+                            <button
+                              key={col}
+                              onClick={() => handleGlassTintChange(col)}
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: '50%',
+                                background: col,
+                                border: glassTint === col ? '2px solid #38bdf8' : '1px solid rgba(255,255,255,0.2)',
+                                cursor: 'pointer',
+                                padding: 0
+                              }}
+                            />
+                          ))}
+                          <input
+                            type="color"
+                            value={glassTint}
+                            onChange={(e) => handleGlassTintChange(e.target.value)}
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: 4,
+                              border: 'none',
+                              cursor: 'pointer',
+                              background: 'transparent'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Blur Intensity Slider */}
+                    <div style={{
+                      padding: '12px 16px',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>Backdrop Blur Intensity</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8' }}>{glassBlur}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="4"
+                        max="24"
+                        value={glassBlur}
+                        onChange={(e) => handleGlassBlurChange(e.target.value)}
+                        style={{ width: '100%', accentColor: '#38bdf8', cursor: 'pointer' }}
+                      />
+                    </div>
+
+                    {/* Glass Opacity Slider */}
+                    <div style={{
+                      padding: '12px 16px',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#ffffff' }}>Surface Opacity</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8' }}>{glassOpacity}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="20"
+                        max="95"
+                        value={glassOpacity}
+                        onChange={(e) => handleGlassOpacityChange(e.target.value)}
+                        style={{ width: '100%', accentColor: '#38bdf8', cursor: 'pointer' }}
+                      />
+                    </div>
+                  </>
+                )}
+
                 <SettingRow
                   title="Subtle Border Glow"
                   desc="Render refined inner edge highlight along notch boundaries"

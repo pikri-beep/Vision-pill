@@ -11,7 +11,8 @@ const {
   nativeImage,
   clipboard,
   powerMonitor,
-  globalShortcut
+  globalShortcut,
+  systemPreferences
 } = require("electron");
 
 // Disable Chromium background timer throttling and occlusion tracking so timers run continuously in background & lock screen
@@ -865,6 +866,29 @@ ipcMain.handle("focus-window", () => {
 
 ipcMain.handle("open-external", async (event, url) => {
   await shell.openExternal(url);
+});
+
+ipcMain.handle("get-accent-color", () => {
+  try {
+    if (process.platform === "win32") {
+      if (typeof systemPreferences?.getAccentColor === "function") {
+        const hex = systemPreferences.getAccentColor();
+        if (hex && typeof hex === "string" && hex.length >= 6) {
+          return "#" + hex.slice(0, 6);
+        }
+      }
+      // Fallback via registry
+      const { execSync } = require("child_process");
+      const out = execSync('reg query "HKCU\\Software\\Microsoft\\Windows\\DWM" /v ColorizationColor', { encoding: "utf8" });
+      const match = out.match(/0x([0-9a-fA-F]{8})/);
+      if (match) {
+        // match[1] is AARRGGBB
+        const rgb = match[1].slice(2, 8);
+        return "#" + rgb;
+      }
+    }
+  } catch (_) {}
+  return "#38bdf8";
 });
 
 ipcMain.handle("get-mascot-mode", () => mascotModeEnabled);

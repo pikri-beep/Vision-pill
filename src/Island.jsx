@@ -18,6 +18,22 @@ import {
   isPointerInsideRect,
 } from "./services/hover/hoverPolicy";
 
+// Helper convert HEX to RGB object
+function hexToRgb(hex) {
+  if (!hex || typeof hex !== 'string') return { r: 24, g: 24, b: 27 };
+  let clean = hex.replace('#', '');
+  if (clean.length === 3) {
+    clean = clean.split('').map(c => c + c).join('');
+  }
+  const num = parseInt(clean, 16);
+  if (isNaN(num)) return { r: 24, g: 24, b: 27 };
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  };
+}
+
 // Helper parse synced LRC format lyrics
 function parseLrc(lrcText) {
   if (!lrcText || typeof lrcText !== "string") return null;
@@ -1951,6 +1967,58 @@ export default function Island() {
   const [theme, setTheme] = useState("default");
   const [bgColor, setBgColor] = useState(localStorage.getItem("bg-color") || "#000000");
   const [textColor, setTextColor] = useState(localStorage.getItem("text-color") || "#FFFFFF");
+  const [glassmorphismEnabled, setGlassmorphismEnabled] = useState(
+    localStorage.getItem("quickpill_glassmorphism") === "true"
+  );
+  const [syncWallpaperEnabled, setSyncWallpaperEnabled] = useState(
+    localStorage.getItem("quickpill_sync_wallpaper") === "true"
+  );
+  const [glassBlur, setGlassBlur] = useState(() => {
+    const v = parseInt(localStorage.getItem("quickpill_glass_blur"), 10);
+    return isNaN(v) ? 12 : v;
+  });
+  const [glassOpacity, setGlassOpacity] = useState(() => {
+    const v = parseInt(localStorage.getItem("quickpill_glass_opacity"), 10);
+    return isNaN(v) ? 75 : v;
+  });
+  const [glassTint, setGlassTint] = useState(() => localStorage.getItem("quickpill_glass_tint") || "#18181b");
+  const [systemAccentColor, setSystemAccentColor] = useState("#38bdf8");
+
+  useEffect(() => {
+    const updateAccent = async () => {
+      try {
+        if (window.electronAPI?.getAccentColor) {
+          const col = await window.electronAPI.getAccentColor();
+          if (col) setSystemAccentColor(col);
+        }
+      } catch (_) {}
+    };
+    updateAccent();
+
+    const handleAppearanceChange = (e) => {
+      const detail = e.detail;
+      if (!detail) {
+        setGlassmorphismEnabled(localStorage.getItem("quickpill_glassmorphism") === "true");
+        setSyncWallpaperEnabled(localStorage.getItem("quickpill_sync_wallpaper") === "true");
+        setIslandBorderEnabled(localStorage.getItem("island-border") !== "false");
+        return;
+      }
+      if (detail.glassmorphism !== undefined) setGlassmorphismEnabled(Boolean(detail.glassmorphism));
+      if (detail.syncWallpaper !== undefined) setSyncWallpaperEnabled(Boolean(detail.syncWallpaper));
+      if (detail.glassBlur !== undefined) setGlassBlur(Number(detail.glassBlur));
+      if (detail.glassOpacity !== undefined) setGlassOpacity(Number(detail.glassOpacity));
+      if (detail.glassTint !== undefined) setGlassTint(detail.glassTint);
+      if (detail.islandBorder !== undefined) setIslandBorderEnabled(Boolean(detail.islandBorder));
+      updateAccent();
+    };
+
+    window.addEventListener("quickpill_appearance_changed", handleAppearanceChange);
+    window.addEventListener("storage", handleAppearanceChange);
+    return () => {
+      window.removeEventListener("quickpill_appearance_changed", handleAppearanceChange);
+      window.removeEventListener("storage", handleAppearanceChange);
+    };
+  }, []);
   const [bgImage, setBgImage] = useState(localStorage.getItem("bg-image") || "none");
   const [settingsTab, setSettingsTab] = useState("general");
   const [tabShortcuts, setTabShortcuts] = useState(() => {
@@ -2143,62 +2211,116 @@ export default function Island() {
   // 1. Music & Synced Lyrics Toggle & LRCLIB fetching
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [syncedLyrics, setSyncedLyrics] = useState(null);
+  const [plainLyrics, setPlainLyrics] = useState(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [lyricsRetryCount, setLyricsRetryCount] = useState(0);
   const lyricsCache = useRef(new Map());
+
+  const handleRetryLyrics = () => {
+    if (spotifyTrack?.name && spotifyTrack?.artist) {
+      const cacheKey = `${spotifyTrack.name}-${spotifyTrack.artist}`.toLowerCase();
+      lyricsCache.current.delete(cacheKey);
+      setLyricsRetryCount(prev => prev + 1);
+    }
+  };
 
   useEffect(() => {
     const title = spotifyTrack?.name;
     const artist = spotifyTrack?.artist;
     if (!title || !artist || title === "Unknown Title") {
       setSyncedLyrics(null);
+      setPlainLyrics(null);
       return;
     }
 
     const cacheKey = `${title}-${artist}`.toLowerCase();
-    if (lyricsCache.current.has(cacheKey)) {
-      setSyncedLyrics(lyricsCache.current.get(cacheKey));
+    if (lyricsCache.current.has(cacheKey) && lyricsRetryCount === 0) {
+      const cached = lyricsCache.current.get(cacheKey);
+      setSyncedLyrics(cached?.synced || null);
+      setPlainLyrics(cached?.plain || null);
       return;
     }
 
     let active = true;
     setLyricsLoading(true);
 
-    const cleanTitle = title.replace(/\(.*?\)|\[.*?\]/g, '').trim();
-    const cleanArtist = artist.split('•')[0].split(',')[0].trim();
+    const cleanTitle = title
+      .replace(/\(.*?\)|\[.*?\]/g, '')
+      .replace(/\s*-\s*(Remastered|Bonus Track|Radio Edit|Live|Single Version|Deluxe).*$/i, '')
+      .replace(/^\d+\.\s*/, '')
+      .trim();
 
-    fetch(`https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`)
+    const cleanArtist = artist
+      .split('•')[0]
+      .split(',')[0]
+      .split('&')[0]
+      .replace(/feat\..*$/i, '')
+      .replace(/ft\..*$/i, '')
+      .trim();
+
+    const headers = {
+      'User-Agent': 'QuickPill-Dynamic-Island/5.5 (https://github.com/pikri-beep/Quick-Pill)'
+    };
+
+    const processPayload = (payload) => {
+      let synced = null;
+      let plain = null;
+      if (payload?.syncedLyrics) {
+        synced = parseLrc(payload.syncedLyrics);
+      }
+      if (payload?.plainLyrics && typeof payload.plainLyrics === 'string') {
+        plain = payload.plainLyrics.split(/\r?\n/).filter(line => line.trim().length > 0);
+      }
+      return { synced, plain };
+    };
+
+    // Tier 1: Exact get
+    fetch(`https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`, { headers })
       .then(res => res.ok ? res.json() : null)
-      .then(data => {
+      .then(async (data) => {
         if (!active) return;
-        if (data?.syncedLyrics) {
-          const parsed = parseLrc(data.syncedLyrics);
+        if (data?.syncedLyrics || data?.plainLyrics) {
+          const parsed = processPayload(data);
           lyricsCache.current.set(cacheKey, parsed);
-          setSyncedLyrics(parsed);
-        } else {
-          return fetch(`https://lrclib.net/api/search?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`)
-            .then(sRes => sRes.ok ? sRes.json() : null)
-            .then(sData => {
-              if (!active) return;
-              const match = sData?.find?.(i => i.syncedLyrics);
-              if (match?.syncedLyrics) {
-                const parsed = parseLrc(match.syncedLyrics);
-                lyricsCache.current.set(cacheKey, parsed);
-                setSyncedLyrics(parsed);
-              } else {
-                setSyncedLyrics(null);
-              }
-            });
+          setSyncedLyrics(parsed.synced);
+          setPlainLyrics(parsed.plain);
+          return;
         }
+
+        // Tier 2: Fuzzy search query
+        const query = `${cleanTitle} ${cleanArtist}`.trim();
+        const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`, { headers })
+          .then(res => res.ok ? res.json() : null)
+          .catch(() => null);
+
+        if (!active) return;
+
+        if (Array.isArray(searchRes) && searchRes.length > 0) {
+          const match = searchRes.find(item => item.syncedLyrics) || searchRes.find(item => item.plainLyrics) || searchRes[0];
+          if (match) {
+            const parsed = processPayload(match);
+            lyricsCache.current.set(cacheKey, parsed);
+            setSyncedLyrics(parsed.synced);
+            setPlainLyrics(parsed.plain);
+            return;
+          }
+        }
+
+        setSyncedLyrics(null);
+        setPlainLyrics(null);
       })
       .catch(() => {
-        if (active) setSyncedLyrics(null);
+        if (active) {
+          setSyncedLyrics(null);
+          setPlainLyrics(null);
+        }
       })
       .finally(() => {
         if (active) setLyricsLoading(false);
       });
 
     return () => { active = false; };
-  }, [spotifyTrack?.name, spotifyTrack?.artist]);
+  }, [spotifyTrack?.name, spotifyTrack?.artist, lyricsRetryCount]);
 
   // Notifications List View Toggle
   const [notificationListView, setNotificationListView] = useState(false);
@@ -5356,6 +5478,36 @@ export default function Island() {
     updateMouseIgnore,
   ]);
 
+  const activePillBg = useMemo(() => {
+    if (!glassmorphismEnabled) {
+      return bgColor || "#000000";
+    }
+    const targetHex = syncWallpaperEnabled ? (systemAccentColor || "#0078d4") : (glassTint || "#18181b");
+    const rgb = hexToRgb(targetHex);
+    const alpha = Math.min(0.95, Math.max(0.2, glassOpacity / 100));
+    const r = Math.round(rgb.r * 0.35 + 10 * 0.65);
+    const g = Math.round(rgb.g * 0.35 + 10 * 0.65);
+    const b = Math.round(rgb.b * 0.35 + 14 * 0.65);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }, [glassmorphismEnabled, syncWallpaperEnabled, systemAccentColor, glassTint, glassOpacity, bgColor]);
+
+  const activePillBorder = useMemo(() => {
+    if (theme === "win95") return "2px solid rgb(254, 254, 254)";
+    if (glassmorphismEnabled) return "1px solid rgba(255, 255, 255, 0.16)";
+    return islandBorderEnabled ? "1px solid rgba(255, 255, 255, 0.08)" : "none";
+  }, [theme, glassmorphismEnabled, islandBorderEnabled]);
+
+  const activePillBoxShadow = useMemo(() => {
+    if (glassmorphismEnabled) {
+      return (mode === "large" || isHudActive)
+        ? "0 24px 60px rgba(0, 0, 0, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.1)"
+        : "0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.22)";
+    }
+    return (mode === "large" || isHudActive)
+      ? "inset 0 -12px 24px -10px rgba(100, 130, 255, 0.18), inset 0 -1px 0 rgba(255, 255, 255, 0.12), 0 8px 24px rgba(0, 0, 0, 0.6)"
+      : "inset 0 -1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.6)";
+  }, [glassmorphismEnabled, mode, isHudActive]);
+
   collapseNotchRef.current = collapseNotch;
 
   return (
@@ -5515,7 +5667,7 @@ export default function Island() {
         left: sideStyles.left,
         top: sideStyles.top || '0px',
         bottom: sideStyles.bottom || 'auto',
-        backgroundColor: bgColor || "#000000",
+        backgroundColor: activePillBg,
         color: textColor || "#FFFFFF",
         opacity: (ctrlHeld && isHovered) ? 0.15 : 1,
         x: sideStyles.x,
@@ -5523,9 +5675,7 @@ export default function Island() {
         borderTopRightRadius: 0,
         borderBottomLeftRadius: cornerRadius,
         borderBottomRightRadius: cornerRadius,
-        boxShadow: (mode === "large" || isHudActive)
-          ? "inset 0 -12px 24px -10px rgba(100, 130, 255, 0.18), inset 0 -1px 0 rgba(255, 255, 255, 0.12), 0 8px 24px rgba(0, 0, 0, 0.6)"
-          : "inset 0 -1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.6)",
+        boxShadow: activePillBoxShadow,
       }}
       onAnimationStart={() => {
         setIsTransitioning(true);
@@ -5552,7 +5702,9 @@ export default function Island() {
         overflow: "visible",
         fontFamily: theme === "win95" ? "w95" : "OpenRunde",
         borderTopLeftRadius: 0,
-        border: theme === "win95" ? "2px solid rgb(254, 254, 254)" : islandBorderEnabled ? "1px solid rgba(255, 255, 255, 0.08)" : "none",
+        border: activePillBorder,
+        backdropFilter: glassmorphismEnabled ? `blur(${glassBlur}px) saturate(180%) contrast(105%)` : undefined,
+        WebkitBackdropFilter: glassmorphismEnabled ? `blur(${glassBlur}px) saturate(180%) contrast(105%)` : undefined,
         borderTop: "none !important",
         marginTop: 0,
         paddingTop: 0,
@@ -5985,28 +6137,16 @@ export default function Island() {
                 {/* Tab 3: Music & Synced Lyrics (Standard View + Synced Lyrics Split View) */}
                 {currentTab === 3 && (() => {
                   const isCurrentlyPlaying = spotifyTrack?.state === 'playing';
-                  const title = spotifyTrack?.name || "Midnight City";
-                  const artist = spotifyTrack?.artist || "M83 • Hurry Up, We're Dreaming";
+                  const title = spotifyTrack?.name || "No Music Playing";
+                  const artist = spotifyTrack?.artist || "Start playing a song on Spotify or Windows Media";
                   const artwork = spotifyTrack?.artwork_url;
-                  const duration = spotifyTrack?.duration || 244;
-                  const pos = mediaPosition || 64;
+                  const duration = spotifyTrack?.duration || 210;
+                  const pos = typeof mediaPosition === 'number' && !isNaN(mediaPosition) ? Math.max(0, mediaPosition) : 0;
                   const remaining = Math.max(0, duration - pos);
 
-                  const DEMO_LYRICS = [
-                    { time: 0, text: "Waiting in a car" },
-                    { time: 10, text: "Waiting for a ride in the dark" },
-                    { time: 25, text: "The night city grows, look and see" },
-                    { time: 45, text: "The city is my church, it wraps me in the blinding light" },
-                    { time: 64, text: "Midnight city, the city is my church" },
-                    { time: 90, text: "Waiting in a car, waiting for a ride in the dark" },
-                    { time: 120, text: "The stars shine like a thousand eyes above us" },
-                    { time: 160, text: "Looking at the skyline, we are unstoppable" }
-                  ];
-
-                  const activeLyrics = (syncedLyrics && syncedLyrics.length > 0) ? syncedLyrics : DEMO_LYRICS;
-                  const currentLyricIdx = activeLyrics.reduce((best, cur, idx) => {
-                    return pos >= cur.time ? idx : best;
-                  }, 0);
+                  const currentLyricIdx = (syncedLyrics && syncedLyrics.length > 0)
+                    ? syncedLyrics.reduce((best, cur, idx) => (pos >= cur.time ? idx : best), 0)
+                    : 0;
 
                   return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none' }}>
@@ -6328,6 +6468,13 @@ export default function Island() {
                                     return (
                                       <div
                                         key={l.time + l.text + idx}
+                                        onClick={() => {
+                                          setMediaPosition(l.time);
+                                          if (window.electronAPI?.controlSystemMedia) {
+                                            window.electronAPI.controlSystemMedia('seek', l.time);
+                                          }
+                                        }}
+                                        title={`Jump to ${formatTimerMMSS(l.time)}`}
                                         style={{
                                           height: 28,
                                           display: 'flex',
@@ -6342,7 +6489,8 @@ export default function Island() {
                                           filter: isActive ? 'blur(0px)' : 'blur(0.5px)',
                                           transform: isActive ? 'scale(1)' : 'scale(0.96)',
                                           transformOrigin: 'left center',
-                                          transition: 'all 300ms cubic-bezier(0.22, 1, 0.36, 1)'
+                                          transition: 'all 300ms cubic-bezier(0.22, 1, 0.36, 1)',
+                                          cursor: 'pointer'
                                         }}
                                       >
                                         {isActive && <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />}
@@ -6352,12 +6500,62 @@ export default function Island() {
                                   })}
                                 </div>
                               </div>
+                            ) : plainLyrics && plainLyrics.length > 0 ? (
+                              <div
+                                style={{
+                                  height: '100%',
+                                  overflowY: 'auto',
+                                  overflowX: 'hidden',
+                                  paddingRight: 4,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 5,
+                                  scrollbarWidth: 'none'
+                                }}
+                              >
+                                <div style={{ fontSize: 9.5, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>
+                                  Lyrics (Unsynced)
+                                </div>
+                                {plainLyrics.map((line, idx) => (
+                                  <div
+                                    key={idx}
+                                    style={{
+                                      fontSize: 11.5,
+                                      color: 'rgba(255,255,255,0.7)',
+                                      lineHeight: '16px',
+                                      whiteSpace: 'pre-wrap'
+                                    }}
+                                  >
+                                    {line}
+                                  </div>
+                                ))}
+                              </div>
                             ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, height: '100%', opacity: 0.55 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, height: '100%', opacity: 0.75 }}>
                                 <Music size={18} color="rgba(255,255,255,0.4)" />
                                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
-                                  No synced lyrics available
+                                  No lyrics found for this track
                                 </span>
+                                <button
+                                  onClick={handleRetryLyrics}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    padding: '3px 8px',
+                                    borderRadius: 6,
+                                    background: 'rgba(56, 189, 248, 0.12)',
+                                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                                    color: '#38bdf8',
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    marginTop: 2
+                                  }}
+                                >
+                                  <RefreshCw size={10} />
+                                  <span>Retry Search</span>
+                                </button>
                               </div>
                             )}
                           </div>

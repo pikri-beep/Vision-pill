@@ -245,6 +245,7 @@ export function initBridge() {
     onMediaUpdate: (cb) => createTauriListener('media:update', cb),
     getBatteryStatus: () => invoke('get_battery_status').catch(() => ({ percent: 100, charging: true })),
     onBatteryChange: (cb) => createTauriListener('battery:changed', cb),
+    getAccentColor: () => invoke('get_accent_color').catch(() => '#38bdf8'),
 
     openExternal: (url) => invoke('open_external', { url }).catch((e) => console.error('[Bridge] openExternal:', e)),
 

@@ -1164,3 +1164,32 @@ pub fn list_usb_drives() -> Vec<(String, String)> {
         Vec::new()
     }
 }
+
+pub fn get_system_accent_color() -> Option<String> {
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let output = Command::new("reg")
+            .args(["query", "HKCU\\Software\\Microsoft\\Windows\\DWM", "/v", "ColorizationColor"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .ok()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if let Some(pos) = stdout.find("0x") {
+            let hex_slice = &stdout[pos + 2..];
+            let hex_str: String = hex_slice.chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+            if hex_str.len() >= 8 {
+                let rgb = &hex_str[2..8];
+                return Some(format!("#{}", rgb));
+            } else if hex_str.len() >= 6 {
+                return Some(format!("#{}", &hex_str[..6]));
+            }
+        }
+        None
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+

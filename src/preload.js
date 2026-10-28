@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeClipboardText: (text) => ipcRenderer.invoke('write-clipboard-text', text),
   clearClipboard: () => ipcRenderer.invoke('clear-clipboard'),
   controlSystemVolume: (action) => ipcRenderer.invoke('control-system-volume', action),
+  getAccentColor: () => ipcRenderer.invoke('get-accent-color'),
   focusWindow: () => ipcRenderer.invoke('focus-window'),
   logMessage: (level, msg, details) => ipcRenderer.invoke('log-message', level, msg, details),
   logRendererError: (errorData) => ipcRenderer.invoke('log-renderer-error', errorData),

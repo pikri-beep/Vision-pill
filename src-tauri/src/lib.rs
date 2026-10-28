@@ -560,6 +560,11 @@ fn control_system_volume(_action: String) -> bool {
 }
 
 #[tauri::command]
+fn get_accent_color() -> Option<String> {
+    native::get_system_accent_color()
+}
+
+#[tauri::command]
 fn focus_window(app: tauri::AppHandle) -> bool {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_always_on_top(true);
@@ -3019,6 +3024,7 @@ pub fn run() {
             control_system_media,
             control_system_volume,
             focus_window,
+            get_accent_color,
             ask_jarvis,
             get_jarvis_config,
             set_jarvis_config,
