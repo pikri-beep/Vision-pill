@@ -6,7 +6,7 @@
 
 Music, notifications, system stats, timers, and everything you need — tucked into the top of your screen.
 
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/Version-5.5.9-blue?style=flat-square)](../../releases) ![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%26%2011-0078D4?style=flat-square) ![Vibe coded](https://img.shields.io/badge/Vibe%20Coded-100%25-ff69b4?style=flat-square)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/Version-5.6.0-blue?style=flat-square)](../../releases) ![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%26%2011-0078D4?style=flat-square) ![Vibe coded](https://img.shields.io/badge/Vibe%20Coded-100%25-ff69b4?style=flat-square)
 
 https://github.com/user-attachments/assets/bd057d18-f65e-4cf4-bf66-a5d107f18658
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Mic, SkipBackIcon, Play, Pause, SkipForwardIcon, Music, Headphones, Zap, Settings, Sun, Cloud, Trash2, ChevronRight, ChevronLeft, Check, X, CloudRain, CloudSnow, CloudLightning, CloudSun, Moon, Eye, EyeOff, GripVertical, List, Search, Star, Calendar as CalendarIcon, Bell, BellOff, AlarmClock, Timer, Activity, Clock, Volume2, VolumeX, Wind, Usb, Download, RefreshCw, Sparkles, AlertCircle, CheckCircle2, SlidersHorizontal, Palette, Compass, Layers, Quote, Copy, Clipboard, Shuffle, BatteryCharging, Battery, ArrowDown, ArrowLeft, FolderOpen, RotateCcw, FileText, CheckCircle, Upload, Film, Package, Phone, PhoneCall, PhoneIncoming, Send, MessageSquare, ExternalLink, Undo, ChevronDown, ChevronUp, BellRing, Keyboard, Droplet, Flame, Inbox, File, CheckSquare, Square, CornerDownLeft, Lock } from "lucide-react";
+import { Camera, SkipBackIcon, Play, Pause, SkipForwardIcon, Music, Headphones, Zap, Settings, Sun, Cloud, ChevronRight, ChevronLeft, Check, X, CloudRain, CloudSnow, CloudLightning, CloudSun, Moon, List, Search, Calendar as CalendarIcon, Bell, Timer, Activity, Clock, Volume2, VolumeX, Download, RefreshCw, Sparkles, AlertCircle, CheckCircle2, SlidersHorizontal, Palette, Compass, Quote, Copy, Clipboard, BatteryCharging, Battery, ArrowLeft, FolderOpen, FileText, MessageSquare, Keyboard, Droplet, Inbox, File, CheckSquare, Lock } from "lucide-react";
 import "./App.css";
 import AppLauncher from "./components/AppLauncher";
 import QuickNotes from "./components/QuickNotes";
@@ -4397,17 +4397,6 @@ export default function Island() {
   }
 
   // Clipboard
-  function formatRelativeTime(timestamp) {
-    if (!timestamp) return "Just now";
-    const diff = Math.floor((Date.now() - timestamp) / 1000);
-    if (diff < 15) return "Just now";
-    if (diff < 60) return `${diff}s ago`;
-    const mins = Math.floor(diff / 60);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
-  }
 
   const clearAllClipboard = () => {
     if (window.electronAPI?.clipboard?.clear) {
