@@ -2479,6 +2479,16 @@ const cursorHitTest = {
 };
 let cursorHitTestTimer = null;
 
+// --- Notch Lifecycle Mode Tracking ("still" vs "large") for Quiet Idle Optimization ---
+let currentNotchLifecycleMode = "still";
+
+ipcMain.on("notch:lifecycle-state", (_event, mode) => {
+  if (typeof mode === "string") {
+    currentNotchLifecycleMode = mode;
+  }
+});
+
+
 function setNotchHitbox(width, height, expanded, anchorX) {
   const w = Number(width);
   const h = Number(height);
@@ -2510,8 +2520,14 @@ function isCursorInsideNotch(point) {
 
 function startCursorHitTestWatcher() {
   if (cursorHitTestTimer) return;
+  let lastHitTick = 0;
   cursorHitTestTimer = setInterval(() => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
+    const now = Date.now();
+    if (currentNotchLifecycleMode === "still" && !cursorHitTest.hovering && now - lastHitTick < 80) {
+      return;
+    }
+    lastHitTick = now;
     try {
       const point = screen.getCursorScreenPoint();
       const inside = isCursorInsideNotch(point);
@@ -2862,8 +2878,14 @@ function startObstructionDetection() {
   if (process.platform !== "win32") return;
   initWin32Obstruction();
 
+  let lastObsTick = 0;
   setInterval(() => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
+    const now = Date.now();
+    if (currentNotchLifecycleMode === "still" && now - lastObsTick < 750) {
+      return;
+    }
+    lastObsTick = now;
 
     let isObstructed = false;
 
@@ -3349,7 +3371,22 @@ ipcMain.handle("get-system-media", async () => {
   });
 });
 
+// Cached hardware statuses to eliminate subprocess churn
+let cachedBluetoothStatus = null;
+let lastBluetoothCheckTime = 0;
+let bluetoothInFlight = false;
+const BLUETOOTH_CACHE_TTL = 30000; // 30 seconds cache
+
 ipcMain.handle("get-bluetooth-status", async () => {
+  const now = Date.now();
+  if (cachedBluetoothStatus && (now - lastBluetoothCheckTime < BLUETOOTH_CACHE_TTL)) {
+    return cachedBluetoothStatus;
+  }
+  if (bluetoothInFlight) {
+    return cachedBluetoothStatus || { connected: false, devices: [] };
+  }
+  bluetoothInFlight = true;
+
   return new Promise((resolve) => {
     const psScript = `
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -3359,33 +3396,74 @@ $names = @($devs | ForEach-Object { $_.FriendlyName })
 `;
     const enc = Buffer.from(psScript, "utf16le").toString("base64");
     exec(`powershell -NoProfile -EncodedCommand ${enc}`, (error, stdout) => {
-      if (error || !stdout) return resolve({ connected: false, devices: [] });
+      bluetoothInFlight = false;
+      lastBluetoothCheckTime = Date.now();
+      if (error || !stdout) {
+        cachedBluetoothStatus = { connected: false, devices: [] };
+        return resolve(cachedBluetoothStatus);
+      }
       try {
         const data = JSON.parse(stdout.trim());
-        resolve({ connected: !!data.connected, devices: Array.isArray(data.devices) ? data.devices : data.devices ? [data.devices] : [] });
+        cachedBluetoothStatus = { connected: !!data.connected, devices: Array.isArray(data.devices) ? data.devices : data.devices ? [data.devices] : [] };
+        resolve(cachedBluetoothStatus);
       } catch {
-        resolve({ connected: false, devices: [] });
+        cachedBluetoothStatus = { connected: false, devices: [] };
+        resolve(cachedBluetoothStatus);
       }
     });
   });
 });
 
+let cachedCameraStatus = false;
+let lastCameraCheckTime = 0;
+let cameraInFlight = false;
+
 ipcMain.handle("get-camera-status", async () => {
+  const now = Date.now();
+  if (now - lastCameraCheckTime < 3500) {
+    return cachedCameraStatus;
+  }
+  if (cameraInFlight) return cachedCameraStatus;
+  cameraInFlight = true;
+
   return new Promise((resolve) => {
     execFile("reg", ["query", "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\webcam", "/s"], (error, stdout) => {
-      if (error || !stdout) return resolve(false);
+      cameraInFlight = false;
+      lastCameraCheckTime = Date.now();
+      if (error || !stdout) {
+        cachedCameraStatus = false;
+        return resolve(false);
+      }
       const matches = stdout.match(/LastUsedTimeStop\s+REG_QWORD\s+0x0\b/i);
-      resolve(!!matches);
+      cachedCameraStatus = !!matches;
+      resolve(cachedCameraStatus);
     });
   });
 });
 
+let cachedMicStatus = false;
+let lastMicCheckTime = 0;
+let micInFlight = false;
+
 ipcMain.handle("get-microphone-status", async () => {
+  const now = Date.now();
+  if (now - lastMicCheckTime < 3500) {
+    return cachedMicStatus;
+  }
+  if (micInFlight) return cachedMicStatus;
+  micInFlight = true;
+
   return new Promise((resolve) => {
     execFile("reg", ["query", "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone", "/s"], (error, stdout) => {
-      if (error || !stdout) return resolve(false);
+      micInFlight = false;
+      lastMicCheckTime = Date.now();
+      if (error || !stdout) {
+        cachedMicStatus = false;
+        return resolve(false);
+      }
       const matches = stdout.match(/LastUsedTimeStop\s+REG_QWORD\s+0x0\b/i);
-      resolve(!!matches);
+      cachedMicStatus = !!matches;
+      resolve(cachedMicStatus);
     });
   });
 });
@@ -3469,8 +3547,14 @@ function startClipboardPolling() {
     }
   } catch (_) {}
 
+  let lastClipTick = 0;
   setInterval(() => {
     try {
+      const now = Date.now();
+      if (currentNotchLifecycleMode === "still" && now - lastClipTick < 1500) {
+        return;
+      }
+      lastClipTick = now;
       const text = clipboard.readText().trim();
       if (text && text !== lastPolledClipboardText) {
         lastPolledClipboardText = text;
@@ -3569,44 +3653,105 @@ $MediaKey::keybd_event(${vkCode}, 0, 2, [UIntPtr]::Zero)
   return false;
 });
 
-// --- Feature: USB Drive Detection ---
+// --- Feature: Event-Driven USB Drive Detection (Native Win32 Zero-Polling) ---
 let knownUSBDrives = null;
+let kernel32UsbLib = null;
+
+function initWin32Usb() {
+  if (process.platform !== "win32" || kernel32UsbLib) return;
+  try {
+    const koffi = require("koffi");
+    const kernel32 = koffi.load("kernel32.dll");
+    kernel32UsbLib = {
+      GetLogicalDrives: kernel32.func("GetLogicalDrives", "uint32", []),
+      GetDriveTypeW: kernel32.func("GetDriveTypeW", "uint", ["str16"]),
+      GetVolumeInformationW: kernel32.func("GetVolumeInformationW", "bool", [
+        "str16",
+        koffi.out(koffi.pointer("char16")),
+        "uint32",
+        koffi.out(koffi.pointer("uint32")),
+        koffi.out(koffi.pointer("uint32")),
+        koffi.out(koffi.pointer("uint32")),
+        koffi.out(koffi.pointer("char16")),
+        "uint32"
+      ])
+    };
+  } catch (err) {
+    logToFile("[USB] Koffi kernel32 init failed:", err);
+  }
+}
+
+function checkRemovableDrives() {
+  if (process.platform !== "win32") return;
+  initWin32Usb();
+  if (!kernel32UsbLib) return;
+
+  try {
+    const mask = kernel32UsbLib.GetLogicalDrives();
+    const currentDrives = new Map();
+
+    for (let i = 0; i < 26; i++) {
+      if ((mask >> i) & 1) {
+        const letter = String.fromCharCode(65 + i) + ":";
+        const root = letter + "\\";
+        const driveType = kernel32UsbLib.GetDriveTypeW(root);
+        // DRIVE_REMOVABLE = 2
+        if (driveType === 2) {
+          let volName = "USB Drive";
+          try {
+            const buf = Buffer.alloc(512);
+            const ok = kernel32UsbLib.GetVolumeInformationW(root, buf, 256, null, null, null, null, 0);
+            if (ok) {
+              const name = buf.toString("utf16le").replace(/\0.*$/, "").trim();
+              if (name) volName = name;
+            }
+          } catch (_) {}
+          currentDrives.set(letter, volName);
+        }
+      }
+    }
+
+    if (knownUSBDrives !== null && mainWindow && !mainWindow.isDestroyed()) {
+      for (const [drive, name] of currentDrives) {
+        if (!knownUSBDrives.has(drive)) {
+          mainWindow.webContents.send("usb-change", { action: "connected", drive, name });
+          logToFile(`[USB] Device connected: ${drive} (${name})`);
+        }
+      }
+      for (const [drive] of knownUSBDrives) {
+        if (!currentDrives.has(drive)) {
+          mainWindow.webContents.send("usb-change", { action: "disconnected", drive, name: "USB Drive" });
+          logToFile(`[USB] Device disconnected: ${drive}`);
+        }
+      }
+    }
+    knownUSBDrives = currentDrives;
+  } catch (err) {
+    logToFile("[USB] Error checking removable drives:", err);
+  }
+}
 
 function startUSBPolling() {
   if (process.platform !== "win32") return;
-  let usbInFlight = false;
-  setInterval(() => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (usbInFlight) return; // skip if wmic from previous tick hasn't finished yet
-    usbInFlight = true;
-    exec('wmic logicaldisk where drivetype=2 get name,volumename /format:csv', (err, stdout) => {
-      usbInFlight = false;
-      if (err) return;
-      const currentDrives = new Map();
-      const lines = stdout.trim().split(/\r?\n/).filter(l => l.trim() && !l.startsWith("Node"));
-      for (const line of lines) {
-        const parts = line.trim().split(",");
-        if (parts.length >= 3) {
-          const drive = parts[1]?.trim();
-          const name = parts[2]?.trim() || "USB Drive";
-          if (drive) currentDrives.set(drive, name);
-        }
-      }
-      if (knownUSBDrives !== null && mainWindow && !mainWindow.isDestroyed()) {
-        for (const [drive, name] of currentDrives) {
-          if (!knownUSBDrives.has(drive)) {
-            mainWindow.webContents.send("usb-change", { action: "connected", drive, name });
-          }
-        }
-        for (const [drive] of knownUSBDrives) {
-          if (!currentDrives.has(drive)) {
-            mainWindow.webContents.send("usb-change", { action: "disconnected", drive, name: "USB Drive" });
-          }
-        }
-      }
-      knownUSBDrives = currentDrives;
-    });
-  }, 5000); // 5s is fine for USB detection; WMIC is slow — was 3000ms with no concurrency guard
+  initWin32Usb();
+
+  // Initial check on startup
+  setTimeout(checkRemovableDrives, 1500);
+
+  // Hook native Win32 WM_DEVICECHANGE message on mainWindow (0x0219)
+  // Windows automatically notifies us on device arrival (0x8000) or removal (0x8004)
+  if (mainWindow) {
+    try {
+      const WM_DEVICECHANGE = 0x0219;
+      mainWindow.hookWindowMessage(WM_DEVICECHANGE, () => {
+        setTimeout(checkRemovableDrives, 500);
+      });
+      logToFile("[USB] Hooked WM_DEVICECHANGE successfully (0% CPU event-driven mode).");
+    } catch (err) {
+      logToFile("[USB] Failed to hook window message, falling back to gentle poll:", err);
+      setInterval(checkRemovableDrives, 30000);
+    }
+  }
 }
 
 // --- Feature: Notification Center (Windows) ---

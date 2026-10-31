@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   setNotchHitbox: (width, height, expanded, anchorX) =>
     ipcRenderer.send('notch:set-hitbox', { width, height, expanded, anchorX }),
+  setLifecycleState: (state) =>
+    ipcRenderer.send('notch:lifecycle-state', state),
   onNotchCursorEnter: (callback) => {
     const handler = () => callback();
     ipcRenderer.on('notch-cursor-enter', handler);

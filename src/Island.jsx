@@ -1839,6 +1839,13 @@ export default function Island() {
   const prevModeRef = useRef(mode);
   const [isCollapsing, setIsCollapsing] = useState(false);
 
+  // Notify main process of notch lifecycle state for background resource throttling
+  useEffect(() => {
+    if (window.electronAPI?.setLifecycleState) {
+      window.electronAPI.setLifecycleState(mode);
+    }
+  }, [mode]);
+
   useEffect(() => {
     if (prevModeRef.current === "large" && mode !== "large") {
       setIsCollapsing(true);
@@ -4465,10 +4472,13 @@ export default function Island() {
       });
     };
 
-    fallbackPoll();
-    const interval = setInterval(fallbackPoll, currentTab === 7 ? 600 : 1500);
-    return () => clearInterval(interval);
-  }, [currentTab]);
+    // Only run fallback poll if not supported by main process listener AND Tab 7 is open
+    if (mode === "large" && currentTab === 7) {
+      fallbackPoll();
+      const interval = setInterval(fallbackPoll, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [mode, currentTab]);
 
   // Get Bluetooth
   useEffect(() => {
@@ -4493,9 +4503,11 @@ export default function Island() {
     };
 
     fetchBluetooth();
-    const interval = setInterval(fetchBluetooth, 8000); // Check every 8 seconds
+    // Relaxed polling: every 60s in idle Still Mode, 15s when expanded in Large Mode
+    const pollInterval = mode === "large" ? 15000 : 60000;
+    const interval = setInterval(fetchBluetooth, pollInterval);
     return () => clearInterval(interval);
-  }, []);
+  }, [mode]);
 
   const prevBluetoothConnected = useRef(null);
   useEffect(() => {
@@ -4518,8 +4530,13 @@ export default function Island() {
     }
   }, [bluetooth.connected]);
 
-  // Get Camera Status
+  // Get Camera Status (Optimized: only poll when privacy dots are enabled)
   useEffect(() => {
+    if (!privacyDotsEnabled) {
+      setCameraInUse(false);
+      return;
+    }
+
     let inflightCamera = false;
     const fetchCamera = async () => {
       if (inflightCamera) return;
@@ -4537,12 +4554,17 @@ export default function Island() {
     };
 
     fetchCamera();
-    const interval = setInterval(fetchCamera, 4500); // Check every 4.5 seconds
+    const interval = setInterval(fetchCamera, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [privacyDotsEnabled]);
 
-  // Get Microphone Status
+  // Get Microphone Status (Optimized: only poll when privacy dots are enabled)
   useEffect(() => {
+    if (!privacyDotsEnabled) {
+      setMicrophoneInUse(false);
+      return;
+    }
+
     let inflightMicrophone = false;
     const fetchMicrophone = async () => {
       if (inflightMicrophone) return;
@@ -4560,9 +4582,9 @@ export default function Island() {
     };
 
     fetchMicrophone();
-    const interval = setInterval(fetchMicrophone, 4500); // Check every 4.5 seconds
+    const interval = setInterval(fetchMicrophone, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [privacyDotsEnabled]);
 
   // Get System Metrics (CPU, RAM) - Only active when System Metrics tab (Tab 8) is visible
   useEffect(() => {
@@ -4713,7 +4735,9 @@ export default function Island() {
       fetchNotifications();
     }, 1500);
 
-    const interval = setInterval(fetchNotifications, 5000);
+    // In still mode, suspend aggressive 5s PowerShell execution; poll only when on Tab 5 or every 60s
+    const pollInterval = (mode === "large" || currentTab === 5) ? 6000 : 60000;
+    const interval = setInterval(fetchNotifications, pollInterval);
 
     return () => {
       if (typeof unsub === "function") unsub();
@@ -4721,7 +4745,7 @@ export default function Island() {
       clearInterval(interval);
       clearTimeout(notificationAlertTimeout.current);
     };
-  }, []);
+  }, [mode, currentTab]);
 
   // Smart Notification Action Handlers
   const handleExecuteAction = useCallback(async (notificationId, actionType, params = {}) => {
