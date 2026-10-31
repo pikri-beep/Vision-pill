@@ -32,8 +32,12 @@
       }
     ],
     "files": [
-      "**/*",
+      ".vite/**",
+      "index.html",
+      "package.json",
+      "!src/**",
       "!out/**",
+      "!dist/**",
       "!native/**",
       "!web app/**",
       "!tests/**",
@@ -64,8 +68,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Quick Pill",
-      "artifactName": "QuickPill-Windows-v${version}-Setup.${ext}"
-    }
+      "artifactName": "QuickPill-Windows-v${version}-Setup.${ext}",
+      "differentialPackage": false
+    },
+    "compression": "maximum"
   },
   "keywords": [],
   "author": {
@@ -82,18 +88,18 @@
     "@electron-forge/plugin-fuses": "^7.8.1",
     "@electron-forge/plugin-vite": "^7.8.1",
     "@electron/fuses": "^1.8.0",
+    "@vitejs/plugin-react": "^4.5.2",
     "electron": "^38.7.2",
     "electron-builder": "^26.15.3",
+    "electron-squirrel-startup": "^1.0.1",
+    "framer-motion": "^12.34.0",
+    "lucide-react": "^0.575.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "vite": "^5.4.19"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^4.5.2",
-    "electron-squirrel-startup": "^1.0.1",
-    "framer-motion": "^12.34.0",
-    "koffi": "^3.3.3",
-    "lucide-react": "^0.575.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "koffi": "^3.3.3"
   },
   "allowScripts": {
     "electron@38.7.2": true,

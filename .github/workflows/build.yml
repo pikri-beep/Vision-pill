@@ -40,12 +40,16 @@ jobs:
       - name: Make Electron Distributables
         run: npm run make -- --skip-package
 
+      - name: Build Optimized NSIS Installer
+        run: npx electron-builder --win --x64
+
       # 2. Upload Artifacts to Action Run
       - name: Upload Windows Distributables
         uses: actions/upload-artifact@v4
         with:
           name: QuickPill-Windows-v${{ steps.pkg.outputs.version }}
           path: |
+            dist/*.exe
             out/make/**/*.exe
             out/make/**/*.zip
           if-no-files-found: warn
@@ -61,6 +65,7 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
+            dist/*.exe
             out/make/**/*.exe
             out/make/**/*.zip
         env:
