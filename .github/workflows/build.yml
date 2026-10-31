@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build & Release Windows (Electron & Tauri)
+    name: Build & Release Windows (Electron)
     runs-on: windows-latest
 
     steps:
@@ -24,16 +24,6 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-
-      - name: Setup Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Rust Cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
 
       - name: Get version from package.json
         id: pkg
@@ -50,16 +40,7 @@ jobs:
       - name: Make Electron Distributables
         run: npm run make -- --skip-package
 
-      # 2. Tauri Packaging
-      - name: Build Frontend for Tauri
-        run: npm run build:vite
-
-      - name: Build Tauri Bundles
-        run: npx tauri build
-        env:
-          CI: true
-
-      # 3. Upload Artifacts to Action Run
+      # 2. Upload Artifacts to Action Run
       - name: Upload Windows Distributables
         uses: actions/upload-artifact@v4
         with:
@@ -67,11 +48,9 @@ jobs:
           path: |
             out/make/**/*.exe
             out/make/**/*.zip
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: warn
 
-      # 4. GitHub Release on Push to Main/Master
+      # 3. GitHub Release on Push to Main/Master
       - name: Create GitHub Release
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         uses: softprops/action-gh-release@v2
@@ -84,7 +63,5 @@ jobs:
           files: |
             out/make/**/*.exe
             out/make/**/*.zip
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -20,9 +20,6 @@
     "update:manifest": "node scripts/generate-manifest.js",
     "dev:vite": "vite",
     "build:vite": "vite build",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
     "lint": "echo \"No linting configured\""
   },
   "build": {
@@ -45,7 +42,6 @@
       "!.claude/**",
       "!updates/**",
       "!scripts/**",
-      "!src-tauri/**",
       "!dist-ui/**"
     ],
     "directories": {
@@ -86,13 +82,11 @@
     "@electron-forge/plugin-fuses": "^7.8.1",
     "@electron-forge/plugin-vite": "^7.8.1",
     "@electron/fuses": "^1.8.0",
-    "@tauri-apps/cli": "^2.12.3",
     "electron": "^38.7.2",
     "electron-builder": "^26.15.3",
     "vite": "^5.4.19"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.12.4",
     "@vitejs/plugin-react": "^4.5.2",
     "electron-squirrel-startup": "^1.0.1",
     "framer-motion": "^12.34.0",

@@ -2465,7 +2465,7 @@ const getIconPath = (forceExt = null) => {
   return path.join(__dirname, `../../src/assets/icons/icon.${ext}`);
 };
 
-// --- Native Cursor Hit-Test (Electron twin of the Tauri Rust watcher) ---
+// --- Native Cursor Hit-Test ---
 // The notch floats above every window, so the overlay must stay click-through
 // while idle. Hovering is detected natively (cursor position vs. the notch
 // hitbox) instead of relying on DOM mouse events, which the click-through

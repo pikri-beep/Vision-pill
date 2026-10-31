@@ -7,7 +7,7 @@ BUGS
 
 ALWAYS DO
 - [x] push ke github ke branch main agar trigger update
-- [x] selalu update release vision pill dan berikan installer electron dan tauri (Automated in .github/workflows/build.yml)
+- [x] selalu update release vision pill dan berikan installer electron (Automated in .github/workflows/build.yml)
 
 
 NEXT PLAN 

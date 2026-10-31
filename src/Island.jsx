@@ -2100,8 +2100,14 @@ export default function Island() {
   const ctrlHeldRef = useRef(false);
   const lastIgnoreRef = useRef({ ignore: true, forward: true });
 
-  const updateMouseIgnore = useCallback((_ignore, _forward = true) => {
-    // In Tauri v2, hit-testing is handled natively by the Rust background watcher
+  const updateMouseIgnore = useCallback((ignore, forward = true) => {
+    if (lastIgnoreRef.current?.ignore === ignore && lastIgnoreRef.current?.forward === forward) {
+      return;
+    }
+    lastIgnoreRef.current = { ignore, forward };
+    if (window.electronAPI?.setIgnoreMouseEvents) {
+      window.electronAPI.setIgnoreMouseEvents(ignore, forward);
+    }
   }, []);
 
   const setHoverState = useCallback((val) => {
@@ -2471,7 +2477,7 @@ export default function Island() {
     return () => unsub?.();
   }, []);
 
-  // Native Cursor Hit-Test Hover Integration (Tauri Rust watcher + Electron twin)
+  // Native Cursor Hit-Test Hover Integration
   useEffect(() => {
     const unsubs = [];
     if (window.electronAPI?.onNotchCursorEnter) {
@@ -2931,8 +2937,7 @@ export default function Island() {
       });
     };
 
-    // Tauri delivers the real file paths through the native drag-drop event
-    // (WebView2 does not expose `File.path`).
+    // Native file drop event handler
     const handleNativeDrop = (e) => {
       const files = Array.isArray(e?.detail) ? e.detail : [];
       if (files.length === 0) return;
@@ -2993,10 +2998,6 @@ export default function Island() {
             path: resolvedPath
           };
         });
-
-        // WebView2 does not expose the file path - the native Tauri event
-        // delivers it instead.
-        if (rawFiles.some(f => !f.path)) return;
 
         addShelfFiles(rawFiles);
       }
