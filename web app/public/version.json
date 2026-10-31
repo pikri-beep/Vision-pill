@@ -1,20 +1,19 @@
 {
-  "version": "5.6.0",
-  "name": "Quick Pill 5.6.0",
-  "releaseDate": "2026-10-28",
+  "version": "5.6.1",
+  "name": "Quick Pill 5.6.1",
+  "releaseDate": "2026-10-31",
   "mandatory": false,
   "minSupportedVersion": "4.0.0",
   "changelog": [
-    "Feature: Glassmorphism effect & Windows wallpaper adaptive dynamic coloring (Settings > Appearance).",
-    "Feature: Synced lyrics via lrclib with multi-tier exact & fuzzy searching, auto-scrolling, plain text fallback, and click-to-seek.",
-    "Fix: Resolved lyrics out-of-sync and unloading issue by eliminating position timer race conditions on zero position.",
-    "Optimization: Ponytail code audit cleanup - removed unused dependencies (node-powershell, react-markdown) cutting 90 subpackages.",
-    "Optimization: Cleaned 30 unused Lucide icon imports and eliminated shadowed duplicate relative time functions.",
+    "Optimization: Quiet Idle Architecture - eliminated wmic, powershell, and reg external process loops during idle mode, dropping idle CPU usage to 0.0%.",
+    "Feature: Native Win32 device notification (WM_DEVICECHANGE) for instant USB detection without polling.",
+    "Performance: Suspended non-essential background timers (Camera, Mic, Notifications, Bluetooth) while collapsed in Still Mode.",
+    "Stability: Restored clean, reliable Electron runtime with zero WebView2 crash/hover issues.",
     "CI/CD: Automated GitHub Actions release pipeline for Electron installer."
   ],
   "platforms": {
     "win32-x64": {
-      "url": "https://github.com/pikri-beep/Quick-Pill-Dynamic-Island-for-Windows/releases/download/v5.6.0/QuickPill-Windows-v5.6.0-Setup.exe",
+      "url": "https://github.com/pikri-beep/Quick-Pill-Dynamic-Island-for-Windows/releases/download/v5.6.1/QuickPill-Windows-v5.6.1-Setup.exe",
       "sha256": "",
       "size": 135837444,
       "installerType": "nsis"
