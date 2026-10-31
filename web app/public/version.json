@@ -14,8 +14,8 @@
   "platforms": {
     "win32-x64": {
       "url": "https://github.com/pikri-beep/Quick-Pill-Dynamic-Island-for-Windows/releases/download/v5.6.1/QuickPill-Windows-v5.6.1-Setup.exe",
-      "sha256": "",
-      "size": 135837444,
+      "sha256": "309b24ecf58cee599d5a6b2ca1592380fbcb00aaaecb722b4a5a9ce2f58a9653",
+      "size": 168800256,
       "installerType": "nsis"
     }
   }
