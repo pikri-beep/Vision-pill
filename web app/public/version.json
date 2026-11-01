@@ -1,21 +1,22 @@
 {
-  "version": "5.6.1",
-  "name": "Quick Pill 5.6.1",
-  "releaseDate": "2026-10-31",
+  "version": "5.7.0",
+  "name": "Vision Pill 5.7.0",
+  "releaseDate": "2026-11-01",
   "mandatory": false,
   "minSupportedVersion": "4.0.0",
   "changelog": [
-    "Optimization: Quiet Idle Architecture - eliminated wmic, powershell, and reg external process loops during idle mode, dropping idle CPU usage to 0.0%.",
-    "Feature: Native Win32 device notification (WM_DEVICECHANGE) for instant USB detection without polling.",
-    "Performance: Suspended non-essential background timers (Camera, Mic, Notifications, Bluetooth) while collapsed in Still Mode.",
-    "Stability: Restored clean, reliable Electron runtime with zero WebView2 crash/hover issues.",
-    "CI/CD: Automated GitHub Actions release pipeline for Electron installer."
+    "Feature: Vision Pill Funimated Upgrade - Interactive cartoon physics and tactile spring dynamics across all modules.",
+    "Feature: Liquid Battery Hub - 3-layer parallax fluid sine waves, rising micro-bubbles, charging neon lightning, and low-battery warning tremor.",
+    "Feature: Shelf Puddle Ripple Engine - concentric puddle shockwave rings, upward parabolic splash droplets, and buoyant file cards.",
+    "Feature: Obsidian Visor-Cat Mascot with volume-preserving squash & stretch, spring cursor gaze tracking, and SVG starburst particles.",
+    "Feature: Pomodoro Cardiac Glow Ring, elastic CPU/RAM gauges with live beacon dots, tactile clipboard checkmark pop, and bouncy calendar cells.",
+    "Stability: Pure Electron runtime with zero WebView2 dependencies and 100% passing test coverage."
   ],
   "platforms": {
     "win32-x64": {
-      "url": "https://github.com/pikri-beep/Quick-Pill-Dynamic-Island-for-Windows/releases/download/v5.6.1/QuickPill-Windows-v5.6.1-Setup.exe",
-      "sha256": "68570f7850068da1b30a7095fa56e56542df53f8e561535ab2729bd7c7c4e5ab",
-      "size": 118454467,
+      "url": "https://github.com/pikri-beep/Vision-pill/releases/download/v5.7.0/QuickPill-Windows-v5.7.0-Setup.exe",
+      "sha256": "76118f29fa07b45098b8fd57d99d1130ce11db31aaae855d8b92cfddc5adb631",
+      "size": 118402799,
       "installerType": "nsis"
     }
   }

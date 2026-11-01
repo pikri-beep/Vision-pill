@@ -1836,6 +1836,7 @@ function cleanLegacyStartupEntries() {
 // The first reachable manifest wins. The canonical one lives in the release
 // repository that also hosts the installer binaries.
 const DEFAULT_MANIFEST_URLS = [
+  "https://raw.githubusercontent.com/pikri-beep/Vision-pill/main/web%20app/public/version.json",
   "https://raw.githubusercontent.com/pikri-beep/Quick-Pill-Dynamic-Island-for-Windows/main/web%20app/public/version.json",
   "https://raw.githubusercontent.com/nabil24024004/Quick-Pill/main/web%20app/public/version.json"
 ];

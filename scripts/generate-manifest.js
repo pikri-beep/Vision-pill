@@ -22,7 +22,7 @@ const WEB_APP_PUBLIC_DIR = path.resolve(__dirname, '../web app/public');
 
 // The published installer lives in the GitHub release of the same tag — the
 // updater downloads it from there.
-const RELEASE_REPO = process.env.QP_RELEASE_REPO || 'pikri-beep/Quick-Pill-Dynamic-Island-for-Windows';
+const RELEASE_REPO = process.env.QP_RELEASE_REPO || 'pikri-beep/Vision-pill';
 const RELEASE_URL = (version, fileName) =>
   `https://github.com/${RELEASE_REPO}/releases/download/v${version}/${fileName}`;
 

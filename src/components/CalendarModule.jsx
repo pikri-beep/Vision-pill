@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 
 /**
  * Ultra-Minimalist Apple macOS Calendar Module
@@ -155,7 +156,10 @@ export default function CalendarModule() {
           </span>
 
           {!isSelectedToday && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 450, damping: 16 }}
               onClick={handleGoToToday}
               style={{
                 marginTop: 3,
@@ -172,9 +176,9 @@ export default function CalendarModule() {
                 gap: 3
               }}
             >
-              <span>↩</span>
+              <RotateCcw size={8.5} strokeWidth={2.5} />
               <span>Today</span>
-            </button>
+            </motion.button>
           )}
         </div>
 
@@ -222,52 +226,44 @@ export default function CalendarModule() {
             </span>
 
             <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.25 }}
+                whileTap={{ scale: 0.85 }}
+                transition={{ type: "spring", stiffness: 450, damping: 16 }}
                 onClick={handlePrevMonth}
                 title="Previous Month"
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: "rgba(255, 255, 255, 0.5)",
+                  color: "rgba(255, 255, 255, 0.6)",
                   padding: "1px 2px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  cursor: "pointer",
-                  transition: "color 0.15s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "#ffffff";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "rgba(255, 255, 255, 0.5)";
+                  cursor: "pointer"
                 }}
               >
                 <ChevronLeft size={12} />
-              </button>
-              <button
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.25 }}
+                whileTap={{ scale: 0.85 }}
+                transition={{ type: "spring", stiffness: 450, damping: 16 }}
                 onClick={handleNextMonth}
                 title="Next Month"
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: "rgba(255, 255, 255, 0.5)",
+                  color: "rgba(255, 255, 255, 0.6)",
                   padding: "1px 2px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  cursor: "pointer",
-                  transition: "color 0.15s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "#ffffff";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "rgba(255, 255, 255, 0.5)";
+                  cursor: "pointer"
                 }}
               >
                 <ChevronRight size={12} />
-              </button>
+              </motion.button>
             </div>
           </div>
 
@@ -334,7 +330,10 @@ export default function CalendarModule() {
                     cursor: "pointer"
                   }}
                 >
-                  <div
+                  <motion.div
+                    whileHover={{ scale: 1.25 }}
+                    whileTap={{ scale: 0.85 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 15 }}
                     style={{
                       width: 14,
                       height: 14,
@@ -358,23 +357,12 @@ export default function CalendarModule() {
                             ? "rgba(255, 255, 255, 0.85)"
                             : "rgba(255, 255, 255, 0.18)",
                       boxShadow: isCellToday
-                        ? "0 0 5px rgba(255, 59, 48, 0.45)"
-                        : "none",
-                      transition: "all 0.12s ease"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isCellToday && !isCellSelected) {
-                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isCellToday && !isCellSelected) {
-                        e.currentTarget.style.background = "transparent";
-                      }
+                        ? "0 0 6px rgba(255, 59, 48, 0.6)"
+                        : "none"
                     }}
                   >
                     {cell.day}
-                  </div>
+                  </motion.div>
                 </div>
               );
             })}

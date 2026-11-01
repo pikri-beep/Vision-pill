@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { motion } from "framer-motion";
 import { Globe, Folder, Play, ExternalLink, Settings as SettingsIcon, Search, X } from "lucide-react";
 
 export const DEFAULT_LAUNCHER_SHORTCUTS = [
@@ -267,10 +268,13 @@ export default function AppLauncher({
           }}
         >
           {shortcuts.map((item, idx) => (
-            <div
+            <motion.div
               key={item.id || item.name + idx}
               onClick={() => handleLaunch(item)}
               title={`${item.name} (${item.target})`}
+              whileHover={{ scale: 1.08, y: -4, rotate: (idx % 2 === 0 ? 1.5 : -1.5) }}
+              whileTap={{ scale: 0.92, y: 0 }}
+              transition={{ type: "spring", stiffness: 450, damping: 18 }}
               style={{
                 width: 66,
                 height: 64,
@@ -284,18 +288,7 @@ export default function AppLauncher({
                 justifyContent: "space-between",
                 cursor: "pointer",
                 flexShrink: 0,
-                boxSizing: "border-box",
-                transition: "all 0.18s cubic-bezier(0.16, 1, 0.3, 1)"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-2px) scale(1.04)";
-                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
-                e.currentTarget.style.background = "#181818";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0px) scale(1)";
-                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
-                e.currentTarget.style.background = "#121212";
+                boxSizing: "border-box"
               }}
             >
               <div
@@ -364,7 +357,7 @@ export default function AppLauncher({
               >
                 {item.name}
               </span>
-            </div>
+            </motion.div>
           ))}
         </div>
       )}

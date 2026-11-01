@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Droplet,
   Battery,
@@ -11,8 +12,37 @@ import {
   Heart,
   Activity,
   MessageSquare,
-  Inbox
+  Inbox,
+  Timer,
+  Play,
+  Music
 } from "lucide-react";
+
+// Minimalist Paw SVG vector icon (Zero OS Emoji)
+const PawIcon = ({ size = 11, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <circle cx="5.5" cy="9.5" r="2.5" />
+    <circle cx="10.5" cy="5.5" r="2.5" />
+    <circle cx="15.5" cy="5.5" r="2.5" />
+    <circle cx="20.5" cy="9.5" r="2.5" />
+    <path d="M 6.5,15 C 6,19 9,21 13,21 C 17,21 20,19 19.5,15 C 19,11.5 15,11 13,11 C 11,11 7,11.5 6.5,15 Z" />
+  </svg>
+);
+
+// Cartoon Physics 4-point Starburst vector
+const CartoonStarBurst = ({ size = 12, color = "#fbbf24" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <path d="M 12,0 Q 12,12 24,12 Q 12,12 12,24 Q 12,12 0,12 Q 12,12 12,0 Z" />
+  </svg>
+);
+
+// Cartoon Spark Lines vector
+const CartoonSpark = ({ size = 11, color = "#38bdf8" }) => (
+  <svg width={size} height={size} viewBox="0 0 20 20" fill={color}>
+    <circle cx="10" cy="10" r="2.5" />
+    <path d="M 10,2 L 10,5 M 10,15 L 10,18 M 2,10 L 5,10 M 15,10 L 18,10" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
 
 /**
  * MascotStandbyHub: "Obsidian Visor-Cat / Cyber Spirit"
@@ -169,18 +199,20 @@ export default function MascotStandbyHub({
     if (pokeTimerRef.current) clearTimeout(pokeTimerRef.current);
     pokeTimerRef.current = setTimeout(() => {
       setIsPoked(false);
-    }, 1500);
-
-    // Spawn floating heart / sparkle particle burst
-    const newParticles = [
-      { id: Date.now() + 1, type: "sparkle", x: 38 + Math.random() * 16, y: 16 },
-      { id: Date.now() + 2, type: "heart", x: 48 + Math.random() * 20, y: 12 },
-      { id: Date.now() + 3, type: "sparkle", x: 58 + Math.random() * 16, y: 18 }
-    ];
-    setParticles(prev => [...newParticles, ...prev.slice(0, 4)]);
-    setTimeout(() => {
-      setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
     }, 1200);
+
+    // Spawn floating cartoon SVG particle burst (sparks, stars, hearts)
+    const newParticles = [
+      { id: Date.now() + 1, type: "star", x: 40, y: 34, dx: -28, dy: -32, rotate: -35 },
+      { id: Date.now() + 2, type: "heart", x: 48, y: 28, dx: 0, dy: -42, rotate: 12 },
+      { id: Date.now() + 3, type: "star", x: 56, y: 34, dx: 28, dy: -32, rotate: 35 },
+      { id: Date.now() + 4, type: "spark", x: 36, y: 44, dx: -36, dy: -10, rotate: -60 },
+      { id: Date.now() + 5, type: "spark", x: 60, y: 44, dx: 36, dy: -10, rotate: 60 },
+    ];
+    setParticles(newParticles);
+    setTimeout(() => {
+      setParticles([]);
+    }, 950);
 
     // Cycle to next status insight
     setManualMoodCycle(prev => prev + 1);
@@ -198,6 +230,17 @@ export default function MascotStandbyHub({
     gulpTimerRef.current = setTimeout(() => {
       setIsGulping(false);
     }, 1600);
+
+    // Secondary action: water droplet & star burst
+    const waterParticles = [
+      { id: Date.now() + 1, type: "spark", x: 44, y: 38, dx: -20, dy: -34, rotate: -15 },
+      { id: Date.now() + 2, type: "star", x: 50, y: 30, dx: 0, dy: -40, rotate: 20 },
+      { id: Date.now() + 3, type: "spark", x: 56, y: 38, dx: 20, dy: -34, rotate: 25 },
+    ];
+    setParticles(waterParticles);
+    setTimeout(() => {
+      setParticles([]);
+    }, 950);
   }, [onAddWater, visibleTabs]);
 
   // Mood-Specific Content Configurations (Pill-Free Badges & Clean Text Action Links)
@@ -210,51 +253,63 @@ export default function MascotStandbyHub({
     switch (activeMood) {
       case "gulping":
         return {
-          badgeText: "💧 Segar!",
+          badgeIcon: Droplet,
+          badgeText: "Segar!",
           badgeColor: "#38bdf8",
           glowColor: "rgba(56, 189, 248, 0.55)",
           rimColor: "rgba(56, 189, 248, 0.4)",
           message: "+250ml tercatat • Tetap terhidrasi!",
           actionBtn: visibleTabs.includes(1) ? (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={() => onSwitchTab?.(1)}
               className="mascot-action-link"
               style={{ color: "#38bdf8" }}
             >
               <span>Detail Hidrasi →</span>
-            </button>
+            </motion.button>
           ) : null
         };
 
       case "thirsty":
         return {
-          badgeText: "💧 Hidrasi",
+          badgeIcon: Droplet,
+          badgeText: "Hidrasi",
           badgeColor: "#38bdf8",
           glowColor: "rgba(56, 189, 248, 0.45)",
           rimColor: "rgba(56, 189, 248, 0.3)",
           message: `${litersIntake}L / ${litersGoal}L • Waktunya minum air!`,
           actionBtn: visibleTabs.includes(1) ? (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={handleDrinkWater}
               className="mascot-action-link"
               style={{ color: "#38bdf8" }}
             >
               <Droplet size={11} color="#38bdf8" />
               <span>Minum (+250ml) →</span>
-            </button>
+            </motion.button>
           ) : null
         };
 
       case "focusing":
         return {
-          badgeText: "🔥 Fokus",
+          badgeIcon: Timer,
+          badgeText: "Fokus",
           badgeColor: "#fb7185",
           glowColor: "rgba(244, 63, 94, 0.5)",
           rimColor: "rgba(244, 63, 94, 0.4)",
           message: `Sisa ${formattedPomodoroTime} • Tetap fokus!`,
           actionBtn: visibleTabs.includes(10) ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.92, scaleY: 0.86 }}
+                transition={{ type: "spring", stiffness: 480, damping: 20 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   onTogglePomodoro?.();
@@ -264,28 +319,35 @@ export default function MascotStandbyHub({
               >
                 <Pause size={10} />
                 <span>Pause</span>
-              </button>
-              <button
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.92, scaleY: 0.86 }}
+                transition={{ type: "spring", stiffness: 480, damping: 20 }}
                 onClick={() => onSwitchTab?.(10)}
                 className="mascot-action-link"
                 style={{ color: "rgba(255, 255, 255, 0.65)" }}
               >
                 <span>Pomodoro →</span>
-              </button>
+              </motion.button>
             </div>
           ) : null
         };
 
       case "vibing":
         return {
-          badgeText: "🎵 Musik",
+          badgeIcon: Music,
+          badgeText: "Musik",
           badgeColor: "#c084fc",
           glowColor: "rgba(168, 85, 247, 0.45)",
           rimColor: "rgba(168, 85, 247, 0.35)",
           message: `${trackTitle}${trackArtist ? ` • ${trackArtist}` : ""}`,
           actionBtn: visibleTabs.includes(3) ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.92, scaleY: 0.86 }}
+                transition={{ type: "spring", stiffness: 480, damping: 20 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleMedia?.();
@@ -295,8 +357,11 @@ export default function MascotStandbyHub({
               >
                 <Pause size={10} />
                 <span>Pause</span>
-              </button>
-              <button
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05, y: -1 }}
+                whileTap={{ scale: 0.92, scaleY: 0.86 }}
+                transition={{ type: "spring", stiffness: 480, damping: 20 }}
                 onClick={() => {
                   onOpenLyrics?.();
                   onSwitchTab?.(3);
@@ -306,45 +371,53 @@ export default function MascotStandbyHub({
               >
                 <MessageSquare size={10} />
                 <span>Lirik →</span>
-              </button>
+              </motion.button>
             </div>
           ) : null
         };
 
       case "charging":
         return {
-          badgeText: "⚡ Charging",
+          badgeIcon: Zap,
+          badgeText: "Charging",
           badgeColor: "#22c55e",
           glowColor: "rgba(34, 197, 94, 0.5)",
           rimColor: "rgba(34, 197, 94, 0.35)",
           message: `Baterai ${percent}% • Pengisian aktif`,
           actionBtn: visibleTabs.includes(11) ? (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={() => onSwitchTab?.(11)}
               className="mascot-action-link"
               style={{ color: "#22c55e" }}
             >
               <BatteryCharging size={11} />
               <span>Battery Hub →</span>
-            </button>
+            </motion.button>
           ) : null
         };
 
       case "low-battery":
         return {
-          badgeText: "🔋 Low Power",
+          badgeIcon: Battery,
+          badgeText: "Low Power",
           badgeColor: "#f43f5e",
           glowColor: "rgba(244, 63, 94, 0.5)",
           rimColor: "rgba(244, 63, 94, 0.35)",
           message: `Tersisa ${percent}% • Perlu charger!`,
           actionBtn: visibleTabs.includes(11) ? (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={() => onSwitchTab?.(11)}
               className="mascot-action-link"
               style={{ color: "#f43f5e" }}
             >
               <span>Periksa Baterai →</span>
-            </button>
+            </motion.button>
           ) : null
         };
 
@@ -352,9 +425,10 @@ export default function MascotStandbyHub({
         const canOpenTasks = pendingCount > 0 && visibleTabs.includes(8);
         const canOpenShelf = shelfCount > 0 && visibleTabs.includes(13);
         return {
+          badgeIcon: canOpenTasks ? CheckSquare : Inbox,
           badgeText: canOpenTasks
-            ? `📝 ${pendingCount} Tugas`
-            : `📦 ${shelfCount} File`,
+            ? `${pendingCount} Tugas`
+            : `${shelfCount} File`,
           badgeColor: "#fbbf24",
           glowColor: "rgba(251, 191, 36, 0.45)",
           rimColor: "rgba(251, 191, 36, 0.35)",
@@ -364,23 +438,29 @@ export default function MascotStandbyHub({
             ? `${pendingCount} tugas to-do belum selesai`
             : `${shelfCount} file tersimpan di Shelf`,
           actionBtn: canOpenTasks ? (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={() => onSwitchTab?.(8)}
               className="mascot-action-link"
               style={{ color: "#fbbf24" }}
             >
               <CheckSquare size={11} />
               <span>Buka To-Do →</span>
-            </button>
+            </motion.button>
           ) : canOpenShelf ? (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={() => onSwitchTab?.(13)}
               className="mascot-action-link"
               style={{ color: "#fbbf24" }}
             >
               <Inbox size={11} />
               <span>Buka Shelf →</span>
-            </button>
+            </motion.button>
           ) : null
         };
 
@@ -390,50 +470,63 @@ export default function MascotStandbyHub({
         let chillBtn = null;
         if (candidateTab === 14) {
           chillBtn = (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={() => onSwitchTab?.(14)}
               className="mascot-action-link"
               style={{ color: "#818cf8" }}
             >
               <Compass size={11} />
               <span>App Launcher →</span>
-            </button>
+            </motion.button>
           );
         } else if (candidateTab === 16) {
           chillBtn = (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={() => onSwitchTab?.(16)}
               className="mascot-action-link"
               style={{ color: "#a855f7" }}
             >
               <Sparkles size={11} />
               <span>Ask AI →</span>
-            </button>
+            </motion.button>
           );
         } else if (candidateTab === 15) {
           chillBtn = (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={() => onSwitchTab?.(15)}
               className="mascot-action-link"
               style={{ color: "#38bdf8" }}
             >
               <span>Quick Notes →</span>
-            </button>
+            </motion.button>
           );
         } else if (candidateTab !== undefined) {
           chillBtn = (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, y: -1 }}
+              whileTap={{ scale: 0.92, scaleY: 0.86 }}
+              transition={{ type: "spring", stiffness: 480, damping: 20 }}
               onClick={() => onSwitchTab?.(candidateTab)}
               className="mascot-action-link"
               style={{ color: "#818cf8" }}
             >
               <span>Buka Modul →</span>
-            </button>
+            </motion.button>
           );
         }
 
         return {
-          badgeText: "✨ All Good",
+          badgeIcon: Sparkles,
+          badgeText: "All Good",
           badgeColor: "#818cf8",
           glowColor: "rgba(129, 140, 248, 0.45)",
           rimColor: "rgba(255, 255, 255, 0.15)",
@@ -587,35 +680,99 @@ export default function MascotStandbyHub({
           />
 
           {/* Floating Gulping +250ml Badge on Drink */}
-          {isGulping && (
-            <div className="mascot-gulp-badge">
-              +250ml 💧
-            </div>
-          )}
+          <AnimatePresence>
+            {isGulping && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                animate={{ opacity: 1, y: -16, scale: [0.8, 1.18, 1] }}
+                exit={{ opacity: 0, y: -24, scale: 0.8 }}
+                transition={{ duration: 0.55, ease: "easeOut" }}
+                className="mascot-gulp-badge"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4
+                }}
+              >
+                <span>+250ml</span>
+                <Droplet size={11} color="#38bdf8" fill="#38bdf8" />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {/* Floating Sparkles & Hearts Particle Layer */}
-          {particles.map(p => (
-            <div
-              key={p.id}
-              className={p.type === "heart" ? "mascot-particle-heart" : "mascot-particle-sparkle"}
-              style={{
-                position: "absolute",
-                left: `${p.x}%`,
-                top: `${p.y}%`,
-                pointerEvents: "none",
-                zIndex: 10
-              }}
-            >
-              {p.type === "heart" ? (
-                <Heart size={12} color="#ec4899" fill="#ec4899" />
-              ) : (
-                <Sparkles size={11} color="#fbbf24" fill="#fbbf24" />
-              )}
-            </div>
-          ))}
+          {/* Floating Sparkles & Hearts Particle Layer with Cartoon Physics */}
+          <AnimatePresence>
+            {particles.map(p => (
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                animate={{
+                  opacity: [0, 1, 0.9, 0],
+                  scale: [0, 1.35, 1, 0.3],
+                  x: p.dx || 0,
+                  y: p.dy || -24,
+                  rotate: p.rotate || 0
+                }}
+                exit={{ opacity: 0, scale: 0 }}
+                transition={{ duration: 0.85, ease: [0.18, 0.89, 0.32, 1.28] }}
+                style={{
+                  position: "absolute",
+                  left: `${p.x}%`,
+                  top: `${p.y}%`,
+                  pointerEvents: "none",
+                  zIndex: 10
+                }}
+              >
+                {p.type === "heart" ? (
+                  <Heart size={12} color="#ec4899" fill="#ec4899" />
+                ) : p.type === "spark" ? (
+                  <CartoonSpark size={11} color="#38bdf8" />
+                ) : (
+                  <CartoonStarBurst size={13} color="#fbbf24" />
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
 
-          {/* Obsidian Visor-Cat Layered SVG with Gentle Levitation */}
-          <div className="mascot-floating-body">
+          {/* Obsidian Visor-Cat Layered SVG with Cartoon Physics Levitation */}
+          <motion.div
+            className="mascot-floating-body"
+            variants={{
+              idle: {
+                y: [0, -3.5, 1.5, 0],
+                scaleX: [1, 0.985, 1.015, 1],
+                scaleY: [1, 1.015, 0.985, 1],
+                rotate: [0, -1, 1, 0],
+                transition: {
+                  duration: 3.2,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }
+              },
+              poked: {
+                scaleX: [1, 0.82, 1.34, 0.84, 1.14, 0.96, 1.03, 1],
+                scaleY: [1, 1.22, 0.66, 1.28, 0.88, 1.06, 0.98, 1],
+                y: [0, -6, 12, -16, 6, -2, 0],
+                rotate: [0, -10, 12, -6, 2, 0],
+                transition: {
+                  duration: 0.75,
+                  times: [0, 0.12, 0.28, 0.48, 0.68, 0.84, 0.94, 1],
+                  ease: "easeOut"
+                }
+              },
+              gulping: {
+                scaleX: [1, 1.18, 0.88, 1.12, 0.96, 1],
+                scaleY: [1, 0.82, 1.18, 0.9, 1.05, 1],
+                y: [0, 5, -9, 3, 0],
+                transition: {
+                  duration: 0.5,
+                  repeat: 2,
+                  ease: "easeOut"
+                }
+              }
+            }}
+            animate={isPoked ? "poked" : isGulping ? "gulping" : "idle"}
+          >
             <svg
               width="86"
               height="74"
@@ -754,11 +911,18 @@ export default function MascotStandbyHub({
               )}
 
               {/* LAYER 6: Big Ultra-Expressive Eyes (with Real-Time Cursor Tracking) */}
-              <g
+              <motion.g
                 id="cat-eyes"
-                style={{
-                  transform: `translate(${eyeOffset.x}px, ${eyeOffset.y}px)`,
-                  transition: "transform 80ms ease-out"
+                animate={{
+                  x: eyeOffset.x,
+                  y: eyeOffset.y,
+                  skewX: eyeOffset.x > 2 ? 6 : eyeOffset.x < -2 ? -6 : 0
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 450,
+                  damping: 24,
+                  mass: 0.6
                 }}
               >
                 {/* Natural Blinking State */}
@@ -925,9 +1089,9 @@ export default function MascotStandbyHub({
                     <ellipse cx="63" cy="51" rx="4" ry="2" fill="rgba(244, 114, 182, 0.55)" />
                   </>
                 )}
-              </g>
+              </motion.g>
             </svg>
-          </div>
+          </motion.div>
         </div>
 
         {/* =======================================================================
@@ -976,8 +1140,17 @@ export default function MascotStandbyHub({
               flexShrink: 0
             }}
           >
-            {/* Clean borderless header text - NO pill badge */}
+            {/* Clean borderless header text with animated SVG vector icon */}
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              {moodConfig.badgeIcon && (
+                <motion.div
+                  animate={{ scale: [1, 1.15, 0.95, 1], rotate: [0, -6, 6, 0] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                  style={{ display: "flex", alignItems: "center" }}
+                >
+                  <moodConfig.badgeIcon size={12} color={moodConfig.badgeColor} />
+                </motion.div>
+              )}
               <span
                 style={{
                   fontSize: 11,
@@ -990,28 +1163,26 @@ export default function MascotStandbyHub({
               </span>
             </div>
 
-            {/* Minimalist Pet / Cycle Button - Clean icon */}
-            <button
+            {/* Tactile Pet / Cycle Button with Spring Feedback & Zero OS Emoji */}
+            <motion.button
               type="button"
+              whileHover={{ scale: 1.18, rotate: -8 }}
+              whileTap={{ scale: 0.82, rotate: 12 }}
+              transition={{ type: "spring", stiffness: 500, damping: 16 }}
               onClick={handlePokeMascot}
-              title="Elus / klik kucing untuk ganti status 🐾"
+              title="Elus / klik kucing untuk ganti status"
               style={{
                 background: "transparent",
                 border: "none",
-                padding: "0 2px",
+                padding: "2px 4px",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 3,
-                fontSize: 10,
-                color: "rgba(255, 255, 255, 0.45)",
-                cursor: "pointer",
-                transition: "opacity 150ms ease"
+                color: "rgba(255, 255, 255, 0.5)",
+                cursor: "pointer"
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.45")}
             >
-              <span>🐾</span>
-            </button>
+              <PawIcon size={12} color="rgba(255, 255, 255, 0.65)" />
+            </motion.button>
           </div>
 
           {/* Center: Crisp Dynamic Status Message (single line, zero vertical clipping) */}

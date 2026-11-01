@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
 
 /**
  * AskAI: Ultra-Minimalist Ripple-Style AI Companion Module
@@ -152,10 +153,13 @@ export default function AskAI({
             autoFocus
           />
 
-          <button
+          <motion.button
             type="button"
             onClick={handleAsk}
             disabled={!prompt.trim() || status === "loading"}
+            whileHover={prompt.trim() && status !== "loading" ? { scale: 1.02 } : {}}
+            whileTap={prompt.trim() && status !== "loading" ? { scale: 0.96 } : {}}
+            transition={{ type: "spring", stiffness: 450, damping: 16 }}
             style={{
               width: "100%",
               height: 38,
@@ -169,25 +173,26 @@ export default function AskAI({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              transition: "opacity 120ms ease, transform 100ms ease",
               opacity: (!prompt.trim() || status === "loading") ? 0.6 : 1,
               marginTop: 10
             }}
-            onMouseEnter={(e) => {
-              if (prompt.trim() && status !== "loading") e.currentTarget.style.opacity = "0.9";
-            }}
-            onMouseLeave={(e) => {
-              if (prompt.trim() && status !== "loading") e.currentTarget.style.opacity = "1";
-            }}
-            onMouseDown={(e) => {
-              if (prompt.trim() && status !== "loading") e.currentTarget.style.transform = "scale(0.99)";
-            }}
-            onMouseUp={(e) => {
-              e.currentTarget.style.transform = "scale(1)";
-            }}
           >
-            {status === "loading" ? "Thinking..." : "Ask"}
-          </button>
+            {status === "loading" ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span>Thinking...</span>
+                <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+                  {[0, 1, 2].map((i) => (
+                    <motion.div
+                      key={i}
+                      animate={{ scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+                      style={{ width: 4, height: 4, borderRadius: "50%", background: "#000000" }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : "Ask"}
+          </motion.button>
         </>
       )}
 
@@ -215,9 +220,12 @@ export default function AskAI({
             {response}
           </div>
 
-          <button
+          <motion.button
             type="button"
             onClick={handleReset}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 450, damping: 16 }}
             style={{
               width: "100%",
               height: 38,
@@ -231,14 +239,11 @@ export default function AskAI({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              transition: "opacity 120ms ease",
               marginTop: 10
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
           >
             Ask another
-          </button>
+          </motion.button>
         </>
       )}
 

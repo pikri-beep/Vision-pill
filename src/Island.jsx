@@ -9,6 +9,8 @@ import CalendarModule from "./components/CalendarModule";
 import AskAI from "./components/AskAI";
 import ErrorBoundary from "./components/ErrorBoundary";
 import SwipeUpItem from "./components/SwipeUpItem";
+import LiquidBatteryHub from "./components/LiquidBatteryHub";
+import { ShelfPuddleRipples, ShelfSplashDroplets, ShelfPuddleBackdrop } from "./components/ShelfPuddleRipple";
 import { dissolveElement, spawnDustBurst } from "./services/dust/dustBurst";
 import { playNotificationSound, playCallSound } from "./services/audio/notificationSound";
 import {
@@ -610,24 +612,32 @@ const MiniProgressRing = ({ progress = 1, color = "#22c55e", size = 14, strokeWi
   );
 };
 
-// Mascot Eyes for Quiet Standby Notch Mode (Glowing Pill Eyes + Reactive Mood Accessories)
+// Mascot Eyes for Quiet Standby Notch Mode with Funimated Cartoon Physics (Squash & Stretch, Mood-Reactive Geometry)
 const MascotEyes = ({ mood = "chill", isPlaying = false, charging = false, percent = null }) => {
   const [isBlink, setIsBlink] = useState(false);
+  const [isBlinkRight, setIsBlinkRight] = useState(false);
   const [lookOffset, setLookOffset] = useState(0);
 
   useEffect(() => {
-    // Natural blinking interval
+    // Natural desynchronized cartoon blinking loop
     const blinkInterval = setInterval(() => {
       setIsBlink(true);
-      setTimeout(() => setIsBlink(false), 140);
-    }, 3200 + Math.random() * 2500);
+      const timerRight = setTimeout(() => setIsBlinkRight(true), 18);
+      const timerLeftOff = setTimeout(() => setIsBlink(false), 240);
+      const timerRightOff = setTimeout(() => setIsBlinkRight(false), 258);
+      return () => {
+        clearTimeout(timerRight);
+        clearTimeout(timerLeftOff);
+        clearTimeout(timerRightOff);
+      };
+    }, 3200 + Math.random() * 2600);
 
-    // Natural eye look left/right interval
+    // Natural gaze saccade with cartoon anticipation
     const lookInterval = setInterval(() => {
-      const directions = [-3, 0, 3, 0];
+      const directions = [-4, 0, 4, 0];
       const nextDir = directions[Math.floor(Math.random() * directions.length)];
       setLookOffset(nextDir);
-    }, 2400);
+    }, 2500);
 
     return () => {
       clearInterval(blinkInterval);
@@ -648,44 +658,63 @@ const MascotEyes = ({ mood = "chill", isPlaying = false, charging = false, perce
     : "#ffffff";
 
   const glowShadow = charging
-    ? "0 0 8px rgba(34, 197, 94, 0.9)"
+    ? "0 0 10px rgba(34, 197, 94, 0.95)"
     : mood === "thirsty"
-    ? "0 0 8px rgba(56, 189, 248, 0.9)"
+    ? "0 0 10px rgba(56, 189, 248, 0.95)"
     : mood === "focusing"
-    ? "0 0 8px rgba(239, 68, 68, 0.9)"
+    ? "0 0 10px rgba(239, 68, 68, 0.95)"
     : mood === "vibing"
-    ? "0 0 8px rgba(192, 132, 252, 0.9)"
+    ? "0 0 10px rgba(192, 132, 252, 0.95)"
     : percent !== null && percent < 25
-    ? "0 0 6px rgba(244, 63, 94, 0.8)"
-    : "0 0 6px rgba(255, 255, 255, 0.85)";
+    ? "0 0 8px rgba(244, 63, 94, 0.85)"
+    : "0 0 8px rgba(255, 255, 255, 0.9)";
+
+  const isVibing = isPlaying || mood === "vibing";
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {/* Soft ambient radial glow at bottom edge of the notch */}
-      <div
+      {/* Living ambient radial underglow that breathes */}
+      <motion.div
         className="mascot-ambient-glow"
+        animate={{
+          scale: isVibing ? [1, 1.18, 1] : [1, 1.08, 1],
+          opacity: [0.65, 0.95, 0.65]
+        }}
+        transition={{
+          duration: isVibing ? 0.75 : 2.4,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
         style={{
           background: charging
-            ? "radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.4), transparent 70%)"
+            ? "radial-gradient(circle at 50% 100%, rgba(34, 197, 94, 0.45), transparent 70%)"
             : mood === "thirsty"
-            ? "radial-gradient(circle at 50% 100%, rgba(56, 189, 248, 0.4), transparent 70%)"
+            ? "radial-gradient(circle at 50% 100%, rgba(56, 189, 248, 0.45), transparent 70%)"
             : mood === "focusing"
-            ? "radial-gradient(circle at 50% 100%, rgba(239, 68, 68, 0.4), transparent 70%)"
+            ? "radial-gradient(circle at 50% 100%, rgba(239, 68, 68, 0.45), transparent 70%)"
             : mood === "vibing"
-            ? "radial-gradient(circle at 50% 100%, rgba(168, 85, 247, 0.4), transparent 70%)"
+            ? "radial-gradient(circle at 50% 100%, rgba(168, 85, 247, 0.45), transparent 70%)"
             : undefined
         }}
       />
-      <div
-        className={`mascot-pill-eyes ${isPlaying || mood === "vibing" ? "idle-mascot-vibing" : ""}`}
+      <motion.div
+        className={`mascot-pill-eyes ${isVibing ? "idle-mascot-vibing" : ""}`}
+        animate={{
+          x: lookOffset,
+          skewX: lookOffset > 0 ? 8 : lookOffset < 0 ? -8 : 0,
+          y: isVibing ? [0, -2, 0] : 0
+        }}
+        transition={{
+          x: { type: "spring", stiffness: 450, damping: 24 },
+          skewX: { type: "spring", stiffness: 450, damping: 24 },
+          y: { duration: 0.5, repeat: isVibing ? Infinity : 0, ease: "easeInOut" }
+        }}
         style={{
-          transform: `translateX(${lookOffset}px)`,
-          transition: 'transform 240ms cubic-bezier(0.22, 1, 0.36, 1)',
           display: 'flex',
           alignItems: 'center',
           gap: 6
         }}
-        title={`Quick Pill Companion (${mood})`}
+        title={`Vision Companion (${mood})`}
       >
         {/* Mood Reactive Badge Icon */}
         {mood === "thirsty" && (
@@ -697,28 +726,123 @@ const MascotEyes = ({ mood = "chill", isPlaying = false, charging = false, perce
         {mood === "focusing" && !charging && (
           <Timer size={10} color="#ef4444" style={{ filter: "drop-shadow(0 0 4px #ef4444)" }} />
         )}
-        {(isPlaying || mood === "vibing") && !charging && (
-          <Music size={10} color="#38bdf8" style={{ filter: "drop-shadow(0 0 4px #38bdf8)" }} />
+        {isVibing && !charging && (
+          <motion.div
+            animate={{ rotate: [-8, 8, -8], scale: [0.95, 1.1, 0.95] }}
+            transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <Music size={10} color="#38bdf8" style={{ filter: "drop-shadow(0 0 4px #38bdf8)" }} />
+          </motion.div>
         )}
 
-        {/* Mascot Glowing Pill Eyes */}
+        {/* Mascot Eyes with Volume-Preserving Squash & Stretch */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div
-            className={`mascot-eye-pill ${isBlink ? "blink" : ""}`}
-            style={{
-              background: eyeColor,
-              boxShadow: glowShadow
-            }}
-          />
-          <div
-            className={`mascot-eye-pill ${isBlink ? "blink" : ""}`}
-            style={{
-              background: eyeColor,
-              boxShadow: glowShadow
-            }}
-          />
+          {isVibing ? (
+            /* Vibing Happy Curved Smiling Arcs (^  ^) */
+            <>
+              <svg width="9" height="11" viewBox="0 0 9 11" fill="none">
+                <path d="M 1 8 Q 4.5 2 8 8" stroke={eyeColor} strokeWidth="2.4" strokeLinecap="round" style={{ filter: `drop-shadow(${glowShadow})` }} />
+              </svg>
+              <svg width="9" height="11" viewBox="0 0 9 11" fill="none">
+                <path d="M 1 8 Q 4.5 2 8 8" stroke={eyeColor} strokeWidth="2.4" strokeLinecap="round" style={{ filter: `drop-shadow(${glowShadow})` }} />
+              </svg>
+            </>
+          ) : (
+            /* Standard / Reactive Glowing Capsule Eyes with Squash & Stretch Blinking */
+            <>
+              <motion.div
+                className="mascot-eye-pill"
+                animate={isBlink ? {
+                  scaleX: [1, 1.35, 0.82, 1.05, 1],
+                  scaleY: [1, 0.08, 1.25, 0.94, 1]
+                } : {
+                  scaleX: 1,
+                  scaleY: 1
+                }}
+                transition={{
+                  duration: 0.28,
+                  times: [0, 0.25, 0.55, 0.8, 1],
+                  ease: "easeOut"
+                }}
+                style={{
+                  width: 6,
+                  height: 11,
+                  borderRadius: 999,
+                  background: eyeColor,
+                  boxShadow: glowShadow
+                }}
+              />
+              <motion.div
+                className="mascot-eye-pill"
+                animate={isBlinkRight ? {
+                  scaleX: [1, 1.35, 0.82, 1.05, 1],
+                  scaleY: [1, 0.08, 1.25, 0.94, 1]
+                } : {
+                  scaleX: 1,
+                  scaleY: 1
+                }}
+                transition={{
+                  duration: 0.28,
+                  times: [0, 0.25, 0.55, 0.8, 1],
+                  ease: "easeOut"
+                }}
+                style={{
+                  width: 6,
+                  height: 11,
+                  borderRadius: 999,
+                  background: eyeColor,
+                  boxShadow: glowShadow
+                }}
+              />
+            </>
+          )}
         </div>
-      </div>
+      </motion.div>
+    </div>
+  );
+};
+
+// Secondary action burst on notch state changes (Cartoon Physics Disney Law 1 & 5)
+const NotchSecondaryBurst = ({ triggerKey }) => {
+  const [particles, setParticles] = useState([]);
+
+  useEffect(() => {
+    if (!triggerKey) return;
+    const newItems = [
+      { id: `${triggerKey}-1`, dx: -28, dy: 10, rotate: -35, color: "#38bdf8", size: 10 },
+      { id: `${triggerKey}-2`, dx: -12, dy: 16, rotate: 15, color: "#c084fc", size: 8 },
+      { id: `${triggerKey}-3`, dx: 0, dy: 18, rotate: 45, color: "#fbbf24", size: 11 },
+      { id: `${triggerKey}-4`, dx: 14, dy: 15, rotate: -25, color: "#38bdf8", size: 9 },
+      { id: `${triggerKey}-5`, dx: 28, dy: 10, rotate: 30, color: "#a855f7", size: 10 }
+    ];
+    setParticles(newItems);
+    const t = setTimeout(() => setParticles([]), 700);
+    return () => clearTimeout(t);
+  }, [triggerKey]);
+
+  if (particles.length === 0) return null;
+
+  return (
+    <div style={{ position: 'absolute', bottom: -2, left: '50%', width: 0, height: 0, pointerEvents: 'none', zIndex: 1002 }}>
+      {particles.map(p => (
+        <motion.div
+          key={p.id}
+          initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+          animate={{
+            opacity: [0, 1, 0.8, 0],
+            scale: [0, 1.4, 1, 0.3],
+            x: p.dx,
+            y: p.dy,
+            rotate: p.rotate
+          }}
+          transition={{ duration: 0.65, ease: [0.18, 0.89, 0.32, 1.25] }}
+          style={{ position: 'absolute', left: 0, top: 0 }}
+        >
+          <svg width={p.size} height={p.size} viewBox="0 0 24 24" fill={p.color}>
+            <path d="M 12,0 Q 12,12 24,12 Q 12,12 12,24 Q 12,12 0,12 Q 12,12 12,0 Z" />
+          </svg>
+        </motion.div>
+      ))}
     </div>
   );
 };
@@ -742,12 +866,15 @@ const TopSegmentedBar = ({ totalTabs = 1, activeIndex = 0, onSelectTab }) => {
   );
 };
 
-// Left & Right Edge Navigation Arrows
+// Left & Right Edge Navigation Arrows with Tactile Spring Physics
 const EdgeNavigation = ({ onPrev, onNext }) => {
   return (
     <>
-      <div
+      <motion.div
         className="notch-nav-btn left"
+        whileHover={{ scale: 1.22, x: -2 }}
+        whileTap={{ scale: 0.82, scaleX: 0.78 }}
+        transition={{ type: "spring", stiffness: 500, damping: 18 }}
         onClick={(e) => {
           e.stopPropagation();
           onPrev?.();
@@ -755,9 +882,12 @@ const EdgeNavigation = ({ onPrev, onNext }) => {
         title="Previous Tab"
       >
         <ChevronLeft size={14} />
-      </div>
-      <div
+      </motion.div>
+      <motion.div
         className="notch-nav-btn right"
+        whileHover={{ scale: 1.22, x: 2 }}
+        whileTap={{ scale: 0.82, scaleX: 0.78 }}
+        transition={{ type: "spring", stiffness: 500, damping: 18 }}
         onClick={(e) => {
           e.stopPropagation();
           onNext?.();
@@ -765,7 +895,7 @@ const EdgeNavigation = ({ onPrev, onNext }) => {
         title="Next Tab"
       >
         <ChevronRight size={14} />
-      </div>
+      </motion.div>
     </>
   );
 };
@@ -900,8 +1030,16 @@ const AppleSwitch = ({ checked, onChange, disabled = false }) => (
     }}
   >
     <motion.div
-      animate={{ x: checked ? 16 : 0 }}
-      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+      animate={{
+        x: checked ? 16 : 0,
+        scaleX: [1, 1.28, 0.86, 1.04, 1],
+        scaleY: [1, 0.82, 1.15, 0.96, 1]
+      }}
+      transition={{
+        x: { type: "spring", stiffness: 520, damping: 26 },
+        scaleX: { duration: 0.34, times: [0, 0.25, 0.55, 0.8, 1], ease: "easeOut" },
+        scaleY: { duration: 0.34, times: [0, 0.25, 0.55, 0.8, 1], ease: "easeOut" }
+      }}
       style={{
         width: 18,
         height: 18,
@@ -3463,35 +3601,73 @@ export default function Island() {
     return 0;
   });
 
-  const tabVariants = {
-    enter: () => ({
+  const largeShellVariants = {
+    enter: {
       opacity: 0,
       scale: 0.96,
-      filter: "blur(12px)",
+      filter: "blur(8px)",
       x: "-50%",
       transition: {
-        duration: 0.22,
-        ease: [0.22, 1, 0.36, 1]
+        type: "spring",
+        stiffness: 440,
+        damping: 26,
+        mass: 0.8
       }
-    }),
+    },
     center: {
       opacity: 1,
       scale: 1,
       filter: "blur(0px)",
       x: "-50%",
       transition: {
-        duration: 0.22,
-        ease: [0.22, 1, 0.36, 1]
+        type: "spring",
+        stiffness: 440,
+        damping: 26,
+        mass: 0.8
       }
     },
-    exit: () => ({
+    exit: {
       opacity: 0,
       scale: 0.96,
-      filter: "blur(12px)",
+      filter: "blur(8px)",
       x: "-50%",
       transition: {
-        duration: 0.22,
-        ease: [0.22, 1, 0.36, 1]
+        duration: 0.18,
+        ease: [0.4, 0, 0.2, 1]
+      }
+    }
+  };
+
+  const tabVariants = {
+    enter: (dir) => ({
+      opacity: 0,
+      scale: 0.94,
+      x: dir > 0 ? 32 : dir < 0 ? -32 : 0,
+      skewX: dir > 0 ? -5 : dir < 0 ? 5 : 0,
+      filter: "blur(6px)"
+    }),
+    center: {
+      opacity: 1,
+      scale: 1,
+      x: 0,
+      skewX: 0,
+      filter: "blur(0px)",
+      transition: {
+        type: "spring",
+        stiffness: 450,
+        damping: 26,
+        mass: 0.75
+      }
+    },
+    exit: (dir) => ({
+      opacity: 0,
+      scale: 0.94,
+      x: dir > 0 ? -32 : dir < 0 ? 32 : 0,
+      skewX: dir > 0 ? 5 : dir < 0 ? -5 : 0,
+      filter: "blur(6px)",
+      transition: {
+        duration: 0.16,
+        ease: [0.4, 0, 0.2, 1]
       }
     })
   };
@@ -5698,12 +5874,12 @@ export default function Island() {
         setIsTransitioning(false);
       }}
       transition={{
-        width: { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
-        height: { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
-        borderBottomLeftRadius: { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
-        borderBottomRightRadius: { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
-        boxShadow: { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
-        x: { duration: 0.20, ease: [0.16, 1, 0.3, 1] }
+        width: { type: "spring", stiffness: 420, damping: 27, mass: 0.8 },
+        height: { type: "spring", stiffness: 390, damping: 25, mass: 0.8 },
+        borderBottomLeftRadius: { type: "spring", stiffness: 430, damping: 28 },
+        borderBottomRightRadius: { type: "spring", stiffness: 430, damping: 28 },
+        boxShadow: { duration: 0.3, ease: "easeOut" },
+        x: { type: "spring", stiffness: 480, damping: 28 }
       }}
       style={{
         display: "flex",
@@ -5786,6 +5962,9 @@ export default function Island() {
           </svg>
         );
       })()}
+
+      {/* Secondary Action reaction particles on notch mode & state changes */}
+      <NotchSecondaryBurst triggerKey={`${mode}-${isHudActive}`} />
 
       {/* Strict App Boundary Container — strictly clips all tabs, quickviews, and transitions within the pill */}
       <div
@@ -6093,12 +6272,11 @@ export default function Island() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence custom={direction} initial={false}>
+      <AnimatePresence initial={false}>
         {mode === "large" && (
           <motion.div
             key="large-mode-shell"
-            custom={direction}
-            variants={tabVariants}
+            variants={largeShellVariants}
             initial="enter"
             animate="center"
             exit="exit"
@@ -6135,10 +6313,10 @@ export default function Island() {
                 <motion.div
                   key={currentTab}
                   custom={direction}
-                  initial={{ opacity: 0, scale: 0.96, filter: "blur(12px)" }}
-                  animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, scale: 0.96, filter: "blur(12px)" }}
-                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                  variants={tabVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
                   style={{
                     width: '100%',
                     height: '100%',
@@ -6258,7 +6436,10 @@ export default function Island() {
                                 <MessageSquare size={13} />
                               </button>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <button
+                                <motion.button
+                                  whileHover={{ scale: 1.15 }}
+                                  whileTap={{ scale: 0.85, scaleY: 0.8 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
                                   onClick={() => {
                                     lastMediaActionRef.current = Date.now();
                                     window.electronAPI?.controlSystemMedia?.('previous');
@@ -6266,8 +6447,11 @@ export default function Island() {
                                   style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#ffffff' }}
                                 >
                                   <SkipBackIcon size={14} fill="#ffffff" />
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.12 }}
+                                  whileTap={{ scale: 0.86, scaleY: 0.8 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
                                   onClick={() => {
                                     lastMediaActionRef.current = Date.now();
                                     window.electronAPI?.controlSystemMedia?.('playPause');
@@ -6286,8 +6470,11 @@ export default function Island() {
                                   }}
                                 >
                                   {isCurrentlyPlaying ? <Pause size={11} fill="#000000" /> : <Play size={11} fill="#000000" style={{ marginLeft: 1 }} />}
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.15 }}
+                                  whileTap={{ scale: 0.85, scaleY: 0.8 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
                                   onClick={() => {
                                     lastMediaActionRef.current = Date.now();
                                     window.electronAPI?.controlSystemMedia?.('next');
@@ -6295,7 +6482,7 @@ export default function Island() {
                                   style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#ffffff' }}
                                 >
                                   <SkipForwardIcon size={14} fill="#ffffff" />
-                                </button>
+                                </motion.button>
                               </div>
                               <div style={{ width: 14 }} />
                             </div>
@@ -6396,7 +6583,10 @@ export default function Island() {
                                 <span>Lyrics</span>
                               </button>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <button
+                                <motion.button
+                                  whileHover={{ scale: 1.15 }}
+                                  whileTap={{ scale: 0.85, scaleY: 0.8 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
                                   onClick={() => {
                                     lastMediaActionRef.current = Date.now();
                                     window.electronAPI?.controlSystemMedia?.('previous');
@@ -6404,8 +6594,11 @@ export default function Island() {
                                   style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: 2, display: 'flex' }}
                                 >
                                   <SkipBackIcon size={13} fill="#ffffff" />
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.12 }}
+                                  whileTap={{ scale: 0.86, scaleY: 0.8 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
                                   onClick={() => {
                                     lastMediaActionRef.current = Date.now();
                                     window.electronAPI?.controlSystemMedia?.('playPause');
@@ -6424,8 +6617,11 @@ export default function Island() {
                                   }}
                                 >
                                   {isCurrentlyPlaying ? <Pause size={11} fill="#000000" /> : <Play size={11} fill="#000000" style={{ marginLeft: 1 }} />}
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.15 }}
+                                  whileTap={{ scale: 0.85, scaleY: 0.8 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
                                   onClick={() => {
                                     lastMediaActionRef.current = Date.now();
                                     window.electronAPI?.controlSystemMedia?.('next');
@@ -6433,7 +6629,7 @@ export default function Island() {
                                   style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: 2, display: 'flex' }}
                                 >
                                   <SkipForwardIcon size={13} fill="#ffffff" />
-                                </button>
+                                </motion.button>
                               </div>
                               <div style={{ width: 13 }} />
                             </div>
@@ -6586,8 +6782,19 @@ export default function Island() {
 
                   return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', userSelect: 'none' }}>
-                      {/* Left: Bold 52x52 Circular Progress Ring in Coral Red #ef4444 */}
-                      <div style={{ position: 'relative', width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {/* Left: Bold 52x52 Circular Progress Ring in Coral Red #ef4444 with dynamic cardiac breathing glow */}
+                      <motion.div
+                        animate={pomodoroState.isRunning ? {
+                          scale: [1, 1.035, 1],
+                          filter: [
+                            "drop-shadow(0 0 3px rgba(239, 68, 68, 0.45))",
+                            "drop-shadow(0 0 8px rgba(239, 68, 68, 0.8))",
+                            "drop-shadow(0 0 3px rgba(239, 68, 68, 0.45))"
+                          ]
+                        } : { scale: 1, filter: "none" }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                        style={{ position: 'relative', width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                      >
                         <svg width={52} height={52} style={{ transform: 'rotate(-90deg)' }}>
                           <circle cx={26} cy={26} r={21} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={3.5} />
                           <circle
@@ -6600,13 +6807,17 @@ export default function Island() {
                             strokeDasharray={2 * Math.PI * 21}
                             strokeDashoffset={2 * Math.PI * 21 * (1 - progress)}
                             strokeLinecap="round"
-                            style={{ transition: 'stroke-dashoffset 300ms ease' }}
+                            style={{ transition: 'stroke-dashoffset 300ms cubic-bezier(0.34, 1.56, 0.64, 1)' }}
                           />
                         </svg>
-                        <div style={{ position: 'absolute' }}>
+                        <motion.div
+                          animate={pomodoroState.isRunning ? { rotate: [0, -5, 5, 0] } : { rotate: 0 }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                          style={{ position: 'absolute' }}
+                        >
                           <Timer size={19} color="#ef4444" />
-                        </div>
-                      </div>
+                        </motion.div>
+                      </motion.div>
 
                       {/* Right: Crisp 24px Countdown + Subtitle + 3 Pill Buttons */}
                       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', paddingLeft: 14 }}>
@@ -6619,9 +6830,12 @@ export default function Island() {
                           </span>
                         </div>
 
-                        {/* Row of 3 sleek pill buttons */}
+                        {/* Row of 3 sleek pill buttons with spring physics */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                          <button
+                          <motion.button
+                            whileHover={{ scale: 1.05, y: -1 }}
+                            whileTap={{ scale: 0.94, y: 0 }}
+                            transition={{ type: "spring", stiffness: 450, damping: 16 }}
                             onClick={() => {
                               setPomodoroState({
                                 isRunning: true,
@@ -6641,9 +6855,12 @@ export default function Island() {
                               cursor: 'pointer'
                             }}
                           >
-                            ● Short Break
-                          </button>
-                          <button
+                            Short Break
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.06, y: -1 }}
+                            whileTap={{ scale: 0.93, y: 0 }}
+                            transition={{ type: "spring", stiffness: 450, damping: 16 }}
                             onClick={() => {
                               setPomodoroState(prev => ({ ...prev, isRunning: !prev.isRunning }));
                             }}
@@ -6656,12 +6873,28 @@ export default function Island() {
                               fontWeight: 700,
                               color: '#ffffff',
                               cursor: 'pointer',
-                              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)'
+                              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
                             }}
                           >
-                            {pomodoroState.isRunning ? '⏸ Pause' : '▶ Start'}
-                          </button>
-                          <button
+                            {pomodoroState.isRunning ? (
+                              <>
+                                <Pause size={10} fill="#ffffff" />
+                                <span>Pause</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play size={10} fill="#ffffff" />
+                                <span>Start</span>
+                              </>
+                            )}
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.05, y: -1 }}
+                            whileTap={{ scale: 0.94, y: 0 }}
+                            transition={{ type: "spring", stiffness: 450, damping: 16 }}
                             onClick={() => {
                               setPomodoroState({
                                 isRunning: false,
@@ -6681,8 +6914,8 @@ export default function Island() {
                               cursor: 'pointer'
                             }}
                           >
-                            ↻ Focus Time
-                          </button>
+                            Focus Time
+                          </motion.button>
                         </div>
                       </div>
                     </div>
@@ -6715,7 +6948,10 @@ export default function Island() {
 
                         {/* Action buttons */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
-                          <button
+                          <motion.button
+                            whileHover={{ scale: 1.08, y: -1 }}
+                            whileTap={{ scale: 0.9, scaleY: 0.84 }}
+                            transition={{ type: "spring", stiffness: 480, damping: 20 }}
                             onClick={addWaterDrink}
                             style={{
                               background: '#0284c7',
@@ -6732,10 +6968,19 @@ export default function Island() {
                               boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
                             }}
                           >
-                            <Droplet size={10} fill="#ffffff" />
-                            <span>💧 Drink</span>
-                          </button>
-                          <button
+                            <motion.div
+                              animate={{ y: [0, -2, 0], scale: [1, 1.15, 1] }}
+                              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                              style={{ display: 'flex', alignItems: 'center' }}
+                            >
+                              <Droplet size={10} fill="#ffffff" />
+                            </motion.div>
+                            <span>Drink</span>
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.06 }}
+                            whileTap={{ scale: 0.92 }}
+                            transition={{ type: "spring", stiffness: 480, damping: 20 }}
                             onClick={resetWaterDrink}
                             style={{
                               background: 'rgba(255,255,255,0.08)',
@@ -6749,7 +6994,7 @@ export default function Island() {
                             }}
                           >
                             Reset
-                          </button>
+                          </motion.button>
                         </div>
                       </div>
 
@@ -6835,9 +7080,17 @@ export default function Island() {
                       userSelect: 'none',
                       boxSizing: 'border-box'
                     }}>
+                      {/* Ambient Liquid Puddle Backdrop & Plop Ripples ("Benda Jatuh ke Genangan") */}
+                      <ShelfPuddleBackdrop isDragOver={isDragOverShelf} />
+                      <ShelfPuddleRipples triggerCount={shelfFiles.length + (isDragOverShelf ? 100 : 0)} />
+                      <ShelfSplashDroplets triggerCount={shelfFiles.length} />
+
                       {/* Floating Clear Pill Button (only when files.length > 0) */}
                       {shelfFiles.length > 0 && (
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.08 }}
+                          whileTap={{ scale: 0.92, scaleY: 0.86 }}
+                          transition={{ type: "spring", stiffness: 480, damping: 20 }}
                           onClick={(e) => {
                             e.stopPropagation();
                             clearShelf();
@@ -6863,7 +7116,7 @@ export default function Island() {
                           onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
                         >
                           Clear
-                        </button>
+                        </motion.button>
                       )}
 
                       {/* Translucent Drag-Over Overlay (Crucial Animation: smoothly fades in over 160ms ease) */}
@@ -6954,9 +7207,29 @@ export default function Island() {
                             const hasThumbnail = isImageExt(file.name) && Boolean(file.path);
 
                             return (
-                              <div
+                              <motion.div
                                 key={(file.path || file.name) + idx}
                                 draggable
+                                animate={{
+                                  y: [0, -3.5, 0],
+                                  rotate: [0, (idx % 2 === 0 ? 0.8 : -0.8), 0]
+                                }}
+                                transition={{
+                                  duration: 2.8 + (idx % 3) * 0.4,
+                                  repeat: Infinity,
+                                  ease: "easeInOut",
+                                  delay: idx * 0.15
+                                }}
+                                whileHover={{
+                                  scale: 1.1,
+                                  y: -7,
+                                  transition: { type: "spring", stiffness: 450, damping: 18 }
+                                }}
+                                whileTap={{
+                                  scale: 0.9,
+                                  scaleY: 0.84,
+                                  transition: { type: "spring", stiffness: 500, damping: 15 }
+                                }}
                                 onDragStart={(e) => {
                                   try {
                                     if (e && typeof e.preventDefault === "function") {
@@ -7004,7 +7277,7 @@ export default function Island() {
                                   cursor: 'pointer',
                                   flexShrink: 0,
                                   userSelect: 'none',
-                                  animationDelay: `${idx * 40}ms`
+                                  zIndex: 10
                                 }}
                               >
                                 {/* Top: 46px x 46px rounded icon/thumbnail with subtle x remove badge on tile hover */}
@@ -7063,12 +7336,34 @@ export default function Island() {
                                   </div>
                                 </div>
 
+                                {/* Floating water reflection shadow underneath */}
+                                <motion.div
+                                  animate={{
+                                    scaleX: [0.85, 1.15, 0.85],
+                                    opacity: [0.25, 0.5, 0.25]
+                                  }}
+                                  transition={{
+                                    duration: 2.8 + (idx % 3) * 0.4,
+                                    repeat: Infinity,
+                                    ease: "easeInOut",
+                                    delay: idx * 0.15
+                                  }}
+                                  style={{
+                                    width: 34,
+                                    height: 4,
+                                    borderRadius: '50%',
+                                    background: 'radial-gradient(ellipse at center, rgba(56, 189, 248, 0.4), transparent 70%)',
+                                    marginTop: 3,
+                                    pointerEvents: 'none'
+                                  }}
+                                />
+
                                 {/* Middle: Bold white truncated filename (11.5px) */}
                                 <span style={{
                                   fontSize: 11.5,
                                   fontWeight: 700,
                                   color: '#ffffff',
-                                  marginTop: 6,
+                                  marginTop: 3,
                                   width: '100%',
                                   textAlign: 'center',
                                   whiteSpace: 'nowrap',
@@ -7082,7 +7377,7 @@ export default function Island() {
                                 <span style={{
                                   fontSize: 10,
                                   color: 'rgba(255, 255, 255, 0.45)',
-                                  marginTop: 2,
+                                  marginTop: 1,
                                   width: '100%',
                                   textAlign: 'center',
                                   whiteSpace: 'nowrap',
@@ -7091,7 +7386,7 @@ export default function Island() {
                                 }}>
                                   {file.size || (isFolder ? "Folder" : "File")}
                                 </span>
-                              </div>
+                              </motion.div>
                             );
                           })}
                         </div>
@@ -7182,6 +7477,7 @@ export default function Island() {
                                   initial={{ opacity: 0, scale: 0.95 }}
                                   animate={{ opacity: 1, scale: 1 }}
                                   exit={{ opacity: 0, scale: 0.92 }}
+                                  whileHover={{ scale: 1.015, x: 2 }}
                                   transition={{ duration: 0.2 }}
                                   className="ripple-todo-row"
                                   style={{
@@ -7197,7 +7493,10 @@ export default function Island() {
                                   }}
                                 >
                                   {/* Rounded square checkbox: 16x16, border-radius: 5px, border: 1.5px solid rgba(255,255,255,0.4) */}
-                                  <div
+                                  <motion.div
+                                    whileHover={{ scale: 1.15 }}
+                                    whileTap={{ scale: 0.8 }}
+                                    transition={{ type: "spring", stiffness: 500, damping: 15 }}
                                     onClick={(e) => handleCheckTask(e, task, idx)}
                                     style={{
                                       width: 16,
@@ -7210,11 +7509,11 @@ export default function Island() {
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
-                                      transition: 'all 150ms ease'
+                                      transition: 'border 150ms ease, background 150ms ease'
                                     }}
                                   >
                                     {isCompleting && <Check size={11} color="#000000" strokeWidth={3} />}
-                                  </div>
+                                  </motion.div>
 
                                   {/* Task title (12.5px white) */}
                                   <span style={{
@@ -7260,7 +7559,10 @@ export default function Island() {
                             boxSizing: 'border-box'
                           }}
                         />
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.92 }}
+                          transition={{ type: "spring", stiffness: 450, damping: 16 }}
                           onClick={addNewTask}
                           style={{
                             background: '#ffffff',
@@ -7270,14 +7572,11 @@ export default function Island() {
                             padding: '0 18px',
                             borderRadius: 999,
                             border: 'none',
-                            cursor: 'pointer',
-                            transition: 'all 140ms ease'
+                            cursor: 'pointer'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                          onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                         >
                           Add
-                        </button>
+                        </motion.button>
                       </div>
                     </div>
                   );
@@ -7286,7 +7585,8 @@ export default function Island() {
                 {/* Tab 0: Browser Search */}
                 {currentTab === 0 && (
                   <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' }}>
-                    <div
+                    <motion.div
+                      whileHover={{ borderColor: "rgba(56, 189, 248, 0.45)", boxShadow: "0 0 14px rgba(56, 189, 248, 0.2)" }}
                       style={{
                         width: '100%',
                         maxWidth: 310,
@@ -7297,10 +7597,17 @@ export default function Island() {
                         border: '1px solid rgba(255, 255, 255, 0.14)',
                         borderRadius: 10,
                         padding: '6px 10px',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        transition: 'border-color 200ms ease, box-shadow 200ms ease'
                       }}
                     >
-                      <Search size={14} color="rgba(255, 255, 255, 0.5)" style={{ flexShrink: 0 }} />
+                      <motion.div
+                        animate={{ rotate: [0, -10, 10, 0], scale: [1, 1.1, 1] }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+                        style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                      >
+                        <Search size={14} color="#38bdf8" />
+                      </motion.div>
                       <input
                         id="browser-searchbar"
                         placeholder="Search Google or type a URL..."
@@ -7329,8 +7636,11 @@ export default function Island() {
                         autoFocus
                       />
                       {browserSearch && (
-                        <button
+                        <motion.button
                           type="button"
+                          whileHover={{ scale: 1.25, rotate: 90 }}
+                          whileTap={{ scale: 0.85 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 15 }}
                           onClick={() => setBrowserSearch("")}
                           style={{
                             background: 'transparent',
@@ -7339,13 +7649,13 @@ export default function Island() {
                             padding: 0,
                             display: 'flex',
                             alignItems: 'center',
-                            color: 'rgba(255, 255, 255, 0.45)'
+                            color: 'rgba(255, 255, 255, 0.55)'
                           }}
                         >
                           <X size={12} />
-                        </button>
+                        </motion.button>
                       )}
-                    </div>
+                    </motion.div>
                     <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 5, opacity: 0.45, fontSize: 9.5 }}>
                       <span>Press</span>
                       <kbd style={{ background: 'rgba(255,255,255,0.12)', padding: '1px 4px', borderRadius: 4, fontSize: 9 }}>Enter</kbd>
@@ -7407,6 +7717,23 @@ export default function Island() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                             {masterAudioMuted ? <VolumeX size={14} color="#ef4444" /> : <Volume2 size={14} color="#38bdf8" />}
                             <span style={{ fontSize: 11, fontWeight: 700, color: '#ffffff' }}>Master</span>
+                            {/* Live mini soundwave equalizer bars */}
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 12, marginLeft: 2 }}>
+                              {[0.5, 0.8, 0.6, 0.9].map((dur, i) => (
+                                <motion.div
+                                  key={i}
+                                  animate={!masterAudioMuted && masterPercent > 0 ? {
+                                    height: [2, 11, 4, 12, 2],
+                                  } : { height: 2 }}
+                                  transition={{ duration: dur, repeat: Infinity, ease: "easeInOut" }}
+                                  style={{
+                                    width: 2,
+                                    borderRadius: 1,
+                                    background: masterAudioMuted ? '#ef4444' : '#38bdf8'
+                                  }}
+                                />
+                              ))}
+                            </div>
                           </div>
                           <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>{masterPercent}%</span>
                         </div>
@@ -7418,7 +7745,10 @@ export default function Island() {
                           onChange={(e) => handleSetMasterVolume(Number(e.target.value) / 100)}
                           style={{ width: '100%', accentColor: '#38bdf8', height: 4, cursor: 'pointer' }}
                         />
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.06 }}
+                          whileTap={{ scale: 0.92, scaleY: 0.86 }}
+                          transition={{ type: "spring", stiffness: 480, damping: 20 }}
                           onClick={handleToggleMasterMute}
                           style={{
                             background: masterAudioMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.08)',
@@ -7432,21 +7762,24 @@ export default function Island() {
                           }}
                         >
                           {masterAudioMuted ? 'Unmute' : 'Mute'}
-                        </button>
+                        </motion.button>
                       </div>
 
                       {/* Right: Output Device Info */}
                       <div style={{ flex: 1, minWidth: 0, paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <span style={{ fontSize: 9.5, fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>Output Device</span>
-                        <div style={{
-                          background: 'rgba(255,255,255,0.06)',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: 8,
-                          padding: '6px 8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6
-                        }}>
+                        <motion.div
+                          whileHover={{ scale: 1.03, borderColor: 'rgba(56, 189, 248, 0.35)' }}
+                          style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: 8,
+                            padding: '6px 8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6
+                          }}
+                        >
                           <Headphones size={14} color="#38bdf8" style={{ flexShrink: 0 }} />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 10.5, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -7454,7 +7787,7 @@ export default function Island() {
                             </div>
                             <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.4)' }}>Windows Audio Device</div>
                           </div>
-                        </div>
+                        </motion.div>
                       </div>
                     </div>
                   );
@@ -7497,22 +7830,12 @@ export default function Island() {
                   />
                 )}
 
-                {/* Tab 11: Battery Hub */}
+                {/* Tab 11: Battery Hub with Funimated Liquid Battery Waves & Dynamic Charging Currents */}
                 {currentTab === 11 && (
-                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', userSelect: 'none' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(34, 197, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {charging ? <BatteryCharging size={20} color="#22c55e" /> : <Battery size={20} color="#22c55e" />}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: '#ffffff' }}>{percent}%</span>
-                        <span style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.5)' }}>{charging ? 'Charging plugged in' : 'On battery power'}</span>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: '#22c55e', background: 'rgba(34, 197, 94, 0.1)', padding: '3px 8px', borderRadius: 6 }}>
-                      Healthy
-                    </div>
-                  </div>
+                  <LiquidBatteryHub
+                    percent={percent !== null && !isNaN(percent) ? percent : 80}
+                    charging={Boolean(charging)}
+                  />
                 )}
 
                 {/* Tab 4: Calendar (Authentic macOS Style) */}
@@ -7558,38 +7881,49 @@ export default function Island() {
                         flexShrink: 0
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                          <div style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 6,
-                            background: 'rgba(168, 85, 247, 0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}>
+                          <motion.div
+                            animate={activeCount > 0 ? { rotate: [-10, 10, -8, 8, 0] } : { rotate: 0 }}
+                            transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 3, ease: "easeInOut" }}
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 6,
+                              background: 'rgba(168, 85, 247, 0.2)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
                             <Bell size={12} color="#c084fc" />
-                          </div>
+                          </motion.div>
                           <span style={{ fontSize: 12, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.2px' }}>
                             Notifications
                           </span>
                           {activeCount > 0 && (
-                            <span style={{
-                              background: 'rgba(168, 85, 247, 0.25)',
-                              color: '#c084fc',
-                              border: '1px solid rgba(168, 85, 247, 0.4)',
-                              borderRadius: 999,
-                              fontSize: 9.5,
-                              fontWeight: 700,
-                              padding: '1px 7px',
-                              lineHeight: '13px'
-                            }}>
+                            <motion.span
+                              animate={{ scale: [1, 1.1, 1] }}
+                              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                              style={{
+                                background: 'rgba(168, 85, 247, 0.25)',
+                                color: '#c084fc',
+                                border: '1px solid rgba(168, 85, 247, 0.4)',
+                                borderRadius: 999,
+                                fontSize: 9.5,
+                                fontWeight: 700,
+                                padding: '1px 7px',
+                                lineHeight: '13px'
+                              }}
+                            >
                               {activeCount}
-                            </span>
+                            </motion.span>
                           )}
                         </div>
 
                         {activeCount > 0 ? (
-                          <button
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.93 }}
+                            transition={{ type: "spring", stiffness: 450, damping: 16 }}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleClearAll();
@@ -7603,12 +7937,11 @@ export default function Island() {
                               fontWeight: 600,
                               cursor: 'pointer',
                               padding: '2px 10px',
-                              borderRadius: 999,
-                              transition: 'all 0.15s ease'
+                              borderRadius: 999
                             }}
                           >
                             Clear All
-                          </button>
+                          </motion.button>
                         ) : (
                           <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>
                             Quiet
@@ -7806,25 +8139,49 @@ export default function Island() {
                   );
                 })()}
 
-                {/* Tab 6: Game / Stats */}
+                {/* Tab 6: Game / Stats with Live Bouncing Gauges */}
                 {currentTab === 6 && (
                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: '0 12px', userSelect: 'none' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, width: 110 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#38bdf8' }}>
-                        <span>CPU</span>
-                        <span>{systemStats.cpu}%</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 110 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, fontWeight: 700, color: '#38bdf8' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <motion.span
+                            animate={{ opacity: [0.4, 1, 0.4], scale: [0.85, 1.2, 0.85] }}
+                            transition={{ duration: Math.max(0.6, 2 - (systemStats.cpu / 70)), repeat: Infinity, ease: "easeInOut" }}
+                            style={{ width: 6, height: 6, borderRadius: '50%', background: '#38bdf8', display: 'inline-block', boxShadow: '0 0 6px #38bdf8' }}
+                          />
+                          <span>CPU</span>
+                        </div>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{systemStats.cpu}%</span>
                       </div>
-                      <div style={{ width: '100%', height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ width: `${systemStats.cpu}%`, height: '100%', background: '#38bdf8', borderRadius: 2 }} />
+                      <div style={{ width: '100%', height: 5, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+                        <motion.div
+                          initial={false}
+                          animate={{ width: `${Math.min(100, Math.max(0, systemStats.cpu))}%` }}
+                          transition={{ type: 'spring', stiffness: 120, damping: 14 }}
+                          style={{ height: '100%', background: 'linear-gradient(90deg, #0284c7, #38bdf8)', borderRadius: 3, boxShadow: '0 0 8px rgba(56, 189, 248, 0.5)' }}
+                        />
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, width: 110 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 700, color: '#a855f7' }}>
-                        <span>RAM</span>
-                        <span>{systemStats.ram}%</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 110 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, fontWeight: 700, color: '#a855f7' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <motion.span
+                            animate={{ opacity: [0.4, 1, 0.4], scale: [0.85, 1.2, 0.85] }}
+                            transition={{ duration: Math.max(0.6, 2 - (systemStats.ram / 70)), repeat: Infinity, ease: "easeInOut" }}
+                            style={{ width: 6, height: 6, borderRadius: '50%', background: '#a855f7', display: 'inline-block', boxShadow: '0 0 6px #a855f7' }}
+                          />
+                          <span>RAM</span>
+                        </div>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{systemStats.ram}%</span>
                       </div>
-                      <div style={{ width: '100%', height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ width: `${systemStats.ram}%`, height: '100%', background: '#a855f7', borderRadius: 2 }} />
+                      <div style={{ width: '100%', height: 5, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+                        <motion.div
+                          initial={false}
+                          animate={{ width: `${Math.min(100, Math.max(0, systemStats.ram))}%` }}
+                          transition={{ type: 'spring', stiffness: 120, damping: 14 }}
+                          style={{ height: '100%', background: 'linear-gradient(90deg, #7e22ce, #c084fc)', borderRadius: 3, boxShadow: '0 0 8px rgba(168, 85, 247, 0.5)' }}
+                        />
                       </div>
                     </div>
                   </div>
@@ -7885,8 +8242,11 @@ export default function Island() {
                             const isCopied = copiedClipboardId === itemId;
 
                             return (
-                              <div
+                              <motion.div
                                 key={itemId}
+                                whileHover={{ scale: 1.015, y: -2 }}
+                                whileTap={{ scale: 0.98 }}
+                                transition={{ type: "spring", stiffness: 450, damping: 18 }}
                                 className="ripple-clipboard-card"
                                 style={{
                                   background: '#121212',
@@ -7911,15 +8271,18 @@ export default function Island() {
                                 }}>
                                   {itemText}
                                 </div>
-                                <button
+                                <motion.button
+                                  whileHover={{ scale: 1.06 }}
+                                  whileTap={{ scale: 0.92 }}
+                                  transition={{ type: "spring", stiffness: 450, damping: 16 }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleCopy(item, itemId);
                                   }}
                                   style={{
                                     alignSelf: 'flex-end',
-                                    background: '#ffffff',
-                                    color: '#000000',
+                                    background: isCopied ? '#22c55e' : '#ffffff',
+                                    color: isCopied ? '#ffffff' : '#000000',
                                     fontWeight: 600,
                                     fontSize: 11,
                                     padding: '3px 14px',
@@ -7928,14 +8291,22 @@ export default function Island() {
                                     cursor: 'pointer',
                                     marginTop: 6,
                                     lineHeight: 1.2,
-                                    transition: 'all 140ms ease'
+                                    boxShadow: isCopied ? '0 0 10px rgba(34, 197, 94, 0.5)' : 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4
                                   }}
-                                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                                 >
-                                  {isCopied ? "Copied" : "Copy"}
-                                </button>
-                              </div>
+                                  {isCopied ? (
+                                    <>
+                                      <Check size={11} strokeWidth={3} />
+                                      <span>Copied</span>
+                                    </>
+                                  ) : (
+                                    "Copy"
+                                  )}
+                                </motion.button>
+                              </motion.div>
                             );
                           })}
                         </div>
