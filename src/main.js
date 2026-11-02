@@ -2566,7 +2566,7 @@ ipcMain.on("notch:set-hitbox", (event, payload) => {
   logToFile(`[notch-hitbox] ${data.width}x${data.height} expanded=${data.expanded}`);
 });
 
-const createWindow = () => {
+function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { x, y, width, height } = primaryDisplay.bounds;
 

@@ -40,8 +40,11 @@ jobs:
       - name: Make Electron Distributables
         run: npm run make -- --skip-package
 
+      - name: Copy Services to Build
+        run: npm run build:services
+
       - name: Build Optimized NSIS Installer
-        run: npx electron-builder --win --x64
+        run: npx electron-builder --win --x64 --publish never
 
       # 2. Upload Artifacts to Action Run
       - name: Upload Windows Distributables
