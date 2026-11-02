@@ -1,7 +1,7 @@
 {
   "name": "quick-pill",
   "productName": "Quick Pill",
-  "version": "5.7.0",
+  "version": "5.7.1",
   "description": "A Dynamic Island for Windows",
   "main": ".vite/build/main.js",
   "scripts": {
@@ -29,12 +29,21 @@
       {
         "from": "native/bin/audio-helper.exe",
         "to": "audio-helper.exe"
+      },
+      {
+        "from": "src/assets/icons/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "src/assets/icons/icon.png",
+        "to": "icon.png"
       }
     ],
     "publish": null,
     "files": [
       ".vite/**",
       "src/services/**",
+      "src/assets/**",
       "index.html",
       "package.json",
       "!out/**",

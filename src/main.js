@@ -2445,26 +2445,40 @@ ipcMain.handle("progress:select-file", async () => {
   return res.filePaths[0];
 });
 
-const getIconPath = (forceExt = null) => {
+function getIconPath(forceExt = null) {
   const ext = forceExt || "ico";
 
-  // 1. Try app bundle directory (works in both dev & app.asar)
+  // 1. Try process.resourcesPath (loose files outside asar)
   try {
-    const appDirIcon = path.join(app.getAppPath(), `src/assets/icons/icon.${ext}`);
+    if (process.resourcesPath) {
+      const resPath = path.join(process.resourcesPath, `icon.${ext}`);
+      if (fs.existsSync(resPath)) return resPath;
+      const assetsPath = path.join(process.resourcesPath, `assets/icons/icon.${ext}`);
+      if (fs.existsSync(assetsPath)) return assetsPath;
+    }
+  } catch (_) {}
+
+  // 2. Try app bundle directory (dev or app.asar)
+  try {
+    const appRoot = typeof app !== "undefined" && app.getAppPath ? app.getAppPath() : process.cwd();
+    const appDirIcon = path.join(appRoot, `src/assets/icons/icon.${ext}`);
     if (fs.existsSync(appDirIcon)) return appDirIcon;
   } catch (_) {}
 
-  // 2. Try process.resourcesPath
+  // 3. Fallback relative to __dirname
   try {
-    const resPath = path.join(process.resourcesPath, `icon.${ext}`);
-    if (fs.existsSync(resPath)) return resPath;
-    const assetsPath = path.join(process.resourcesPath, `assets/icons/icon.${ext}`);
-    if (fs.existsSync(assetsPath)) return assetsPath;
+    const relIcon = path.join(__dirname, `../../src/assets/icons/icon.${ext}`);
+    if (fs.existsSync(relIcon)) return relIcon;
   } catch (_) {}
 
-  // 3. Fallback relative to __dirname
-  return path.join(__dirname, `../../src/assets/icons/icon.${ext}`);
-};
+  // 4. Fallback relative to process.cwd()
+  try {
+    const cwdIcon = path.join(process.cwd(), `src/assets/icons/icon.${ext}`);
+    if (fs.existsSync(cwdIcon)) return cwdIcon;
+  } catch (_) {}
+
+  return path.join(process.resourcesPath || __dirname, `icon.${ext}`);
+}
 
 // --- Native Cursor Hit-Test ---
 // The notch floats above every window, so the overlay must stay click-through
@@ -2975,13 +2989,30 @@ app.whenReady().then(() => {
   });
 
   try {
-    let iconPath = getIconPath();
-    let icon = nativeImage.createFromPath(iconPath);
-    if (icon.isEmpty()) {
-      iconPath = getIconPath("png");
-      icon = nativeImage.createFromPath(iconPath);
+    let trayIcon = null;
+    const icoPath = getIconPath("ico");
+    const pngPath = getIconPath("png");
+
+    if (fs.existsSync(icoPath)) {
+      const icoImg = nativeImage.createFromPath(icoPath);
+      if (!icoImg.isEmpty()) {
+        trayIcon = icoImg.resize({ width: 16, height: 16 });
+      } else {
+        trayIcon = icoPath;
+      }
+    } else if (fs.existsSync(pngPath)) {
+      const pngImg = nativeImage.createFromPath(pngPath);
+      if (!pngImg.isEmpty()) {
+        trayIcon = pngImg.resize({ width: 16, height: 16 });
+      } else {
+        trayIcon = pngPath;
+      }
     }
-    const trayIcon = icon.isEmpty() ? iconPath : icon.resize({ width: 16, height: 16 });
+
+    if (!trayIcon) {
+      trayIcon = nativeImage.createFromDataURL(FALLBACK_FILE_ICON_DATA_URL).resize({ width: 16, height: 16 });
+    }
+
     tray = new Tray(trayIcon);
     tray.setToolTip("Quick Pill");
     tray.on("click", () => {
@@ -2991,8 +3022,9 @@ app.whenReady().then(() => {
       restoreAndShowQuickPill();
     });
     updateTrayMenu();
+    logToFile("[Tray] System tray icon created successfully.");
   } catch (e) {
-    console.error("Failed to create tray:", e);
+    logToFile("[Tray] Failed to create tray:", e);
   }
 
   // Re-assert topmost when display metrics or displays change
