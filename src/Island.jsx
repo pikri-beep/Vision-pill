@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, SkipBackIcon, Play, Pause, SkipForwardIcon, Music, Headphones, Zap, Settings, Sun, Cloud, ChevronRight, ChevronLeft, Check, X, CloudRain, CloudSnow, CloudLightning, CloudSun, Moon, List, Search, Calendar as CalendarIcon, Bell, Timer, Activity, Clock, Volume2, VolumeX, Download, RefreshCw, Sparkles, AlertCircle, CheckCircle2, SlidersHorizontal, Palette, Compass, Quote, Copy, Clipboard, BatteryCharging, Battery, ArrowLeft, FolderOpen, FileText, MessageSquare, Keyboard, Droplet, Inbox, File, CheckSquare, Lock } from "lucide-react";
+import { Camera, SkipBackIcon, Play, Pause, SkipForwardIcon, Music, Headphones, Zap, Settings, Sun, Cloud, ChevronRight, ChevronLeft, Check, X, CloudRain, CloudSnow, CloudLightning, CloudSun, Moon, List, Search, Calendar as CalendarIcon, Bell, Timer, Activity, Clock, Volume2, VolumeX, Download, RefreshCw, Sparkles, AlertCircle, CheckCircle2, SlidersHorizontal, Palette, Compass, Quote, Copy, Clipboard, BatteryCharging, Battery, ArrowLeft, FolderOpen, FileText, MessageSquare, Keyboard, Droplet, Inbox, File, CheckSquare, Lock, Pin } from "lucide-react";
 import "./App.css";
 import AppLauncher from "./components/AppLauncher";
 import QuickNotes from "./components/QuickNotes";
@@ -19,6 +19,15 @@ import {
   HOVER_EDGE_TOLERANCE_PX,
   isPointerInsideRect,
 } from "./services/hover/hoverPolicy";
+import {
+  resolveLyrics,
+  parseLrc,
+  applyLyricOffset,
+  formatLyricTime,
+  findActiveLyricIndex,
+  cleanTrackTitle,
+  cleanArtistName
+} from "./services/lyrics/index";
 
 // Helper convert HEX to RGB object
 function hexToRgb(hex) {
@@ -36,24 +45,7 @@ function hexToRgb(hex) {
   };
 }
 
-// Helper parse synced LRC format lyrics
-function parseLrc(lrcText) {
-  if (!lrcText || typeof lrcText !== "string") return null;
-  const lines = lrcText.split(/\r?\n/);
-  const result = [];
-  for (const line of lines) {
-    const match = line.match(/^\[(\d{2}):(\d{2}(?:\.\d{2,3})?)\](.*)/);
-    if (match) {
-      const minutes = parseInt(match[1], 10);
-      const seconds = parseFloat(match[2]);
-      const text = match[3].trim();
-      if (text) {
-        result.push({ time: minutes * 60 + seconds, text });
-      }
-    }
-  }
-  return result.length > 0 ? result : null;
-}
+// (parseLrc is imported from ./services/lyrics/index)
 
 // Helper format file sizes (Bytes -> KB -> MB)
 function formatBytes(bytes, decimals = 1) {
@@ -2359,119 +2351,88 @@ export default function Island() {
   }, [charging, percent, triggerHudToast]);
 
   // Curated Modules States
-  // 1. Music & Synced Lyrics Toggle & LRCLIB fetching
+  // 1. Music & Synced Lyrics State (Multi-Source + Compact Karaoke + Offset)
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [syncedLyrics, setSyncedLyrics] = useState(null);
   const [plainLyrics, setPlainLyrics] = useState(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [lyricsSource, setLyricsSource] = useState(null);
   const [lyricsRetryCount, setLyricsRetryCount] = useState(0);
-  const lyricsCache = useRef(new Map());
-
-  const handleRetryLyrics = () => {
-    if (spotifyTrack?.name && spotifyTrack?.artist) {
-      const cacheKey = `${spotifyTrack.name}-${spotifyTrack.artist}`.toLowerCase();
-      lyricsCache.current.delete(cacheKey);
-      setLyricsRetryCount(prev => prev + 1);
+  const [lyricOffset, setLyricOffset] = useState(0);
+  const [lyricsPinned, setLyricsPinned] = useState(false);
+  const [showManualSearch, setShowManualSearch] = useState(false);
+  const [manualTitleInput, setManualTitleInput] = useState("");
+  const [manualArtistInput, setManualArtistInput] = useState("");
+  const [manualSearchQuery, setManualSearchQuery] = useState(null);
+  const [compactKaraokeEnabled, setCompactKaraokeEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem("qp_compact_karaoke");
+      return saved === "true";
+    } catch (_) {
+      return false;
     }
+  });
+
+  const handleToggleCompactKaraoke = (e) => {
+    if (e) e.stopPropagation();
+    setCompactKaraokeEnabled(prev => {
+      const next = !prev;
+      try { localStorage.setItem("qp_compact_karaoke", String(next)); } catch (_) {}
+      return next;
+    });
   };
 
+  const handleRetryLyrics = () => {
+    setLyricsRetryCount(prev => prev + 1);
+  };
+
+  // Reset offset and manual query when a new song begins
   useEffect(() => {
-    const title = spotifyTrack?.name;
-    const artist = spotifyTrack?.artist;
-    if (!title || !artist || title === "Unknown Title") {
+    setLyricOffset(0);
+    setManualSearchQuery(null);
+    setShowManualSearch(false);
+  }, [spotifyTrack?.name, spotifyTrack?.artist]);
+
+  useEffect(() => {
+    const rawTitle = spotifyTrack?.name;
+    const rawArtist = spotifyTrack?.artist;
+    const duration = spotifyTrack?.duration || 0;
+
+    if (!rawTitle || !rawArtist || rawTitle === "Unknown Title") {
       setSyncedLyrics(null);
       setPlainLyrics(null);
-      return;
-    }
-
-    const cacheKey = `${title}-${artist}`.toLowerCase();
-    if (lyricsCache.current.has(cacheKey) && lyricsRetryCount === 0) {
-      const cached = lyricsCache.current.get(cacheKey);
-      setSyncedLyrics(cached?.synced || null);
-      setPlainLyrics(cached?.plain || null);
+      setLyricsSource(null);
       return;
     }
 
     let active = true;
     setLyricsLoading(true);
 
-    const cleanTitle = title
-      .replace(/\(.*?\)|\[.*?\]/g, '')
-      .replace(/\s*-\s*(Remastered|Bonus Track|Radio Edit|Live|Single Version|Deluxe).*$/i, '')
-      .replace(/^\d+\.\s*/, '')
-      .trim();
-
-    const cleanArtist = artist
-      .split('•')[0]
-      .split(',')[0]
-      .split('&')[0]
-      .replace(/feat\..*$/i, '')
-      .replace(/ft\..*$/i, '')
-      .trim();
-
-    const headers = {
-      'User-Agent': 'QuickPill-Dynamic-Island/5.5 (https://github.com/pikri-beep/Quick-Pill)'
-    };
-
-    const processPayload = (payload) => {
-      let synced = null;
-      let plain = null;
-      if (payload?.syncedLyrics) {
-        synced = parseLrc(payload.syncedLyrics);
-      }
-      if (payload?.plainLyrics && typeof payload.plainLyrics === 'string') {
-        plain = payload.plainLyrics.split(/\r?\n/).filter(line => line.trim().length > 0);
-      }
-      return { synced, plain };
-    };
-
-    // Tier 1: Exact get
-    fetch(`https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`, { headers })
-      .then(res => res.ok ? res.json() : null)
-      .then(async (data) => {
+    resolveLyrics(rawTitle, rawArtist, duration, manualSearchQuery)
+      .then((res) => {
         if (!active) return;
-        if (data?.syncedLyrics || data?.plainLyrics) {
-          const parsed = processPayload(data);
-          lyricsCache.current.set(cacheKey, parsed);
-          setSyncedLyrics(parsed.synced);
-          setPlainLyrics(parsed.plain);
-          return;
-        }
-
-        // Tier 2: Fuzzy search query
-        const query = `${cleanTitle} ${cleanArtist}`.trim();
-        const searchRes = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`, { headers })
-          .then(res => res.ok ? res.json() : null)
-          .catch(() => null);
-
-        if (!active) return;
-
-        if (Array.isArray(searchRes) && searchRes.length > 0) {
-          const match = searchRes.find(item => item.syncedLyrics) || searchRes.find(item => item.plainLyrics) || searchRes[0];
-          if (match) {
-            const parsed = processPayload(match);
-            lyricsCache.current.set(cacheKey, parsed);
-            setSyncedLyrics(parsed.synced);
-            setPlainLyrics(parsed.plain);
-            return;
-          }
-        }
-
-        setSyncedLyrics(null);
-        setPlainLyrics(null);
+        setSyncedLyrics(res?.synced || null);
+        setPlainLyrics(res?.plain || null);
+        setLyricsSource(res?.source || null);
       })
       .catch(() => {
-        if (active) {
-          setSyncedLyrics(null);
-          setPlainLyrics(null);
-        }
+        if (!active) return;
+        setSyncedLyrics(null);
+        setPlainLyrics(null);
+        setLyricsSource(null);
       })
       .finally(() => {
         if (active) setLyricsLoading(false);
       });
 
     return () => { active = false; };
-  }, [spotifyTrack?.name, spotifyTrack?.artist, lyricsRetryCount]);
+  }, [spotifyTrack?.name, spotifyTrack?.artist, spotifyTrack?.duration, lyricsRetryCount, manualSearchQuery]);
+
+  // Calibrated synced lyrics with manual timing offset applied
+  const effectiveLyrics = useMemo(() => {
+    if (!syncedLyrics) return null;
+    return applyLyricOffset(syncedLyrics, lyricOffset);
+  }, [syncedLyrics, lyricOffset]);
 
   // Notifications List View Toggle
   const [notificationListView, setNotificationListView] = useState(false);
@@ -3963,6 +3924,7 @@ export default function Island() {
   }, [waterIntake, pomodoroState?.isRunning, isPlaying, charging, percent, pendingTasksCount, shelfFiles, visibleTabs]);
 
   const isIdleMascot = mode !== "large" && !isHudActive && !isMicroMode && Boolean(mascotMode && timerSeconds === 0);
+  const isCompactKaraokeActive = mode !== "large" && !isHudActive && !isMicroMode && compactKaraokeEnabled && isPlaying;
 
   const width = isHudActive
     ? 310
@@ -3970,7 +3932,9 @@ export default function Island() {
       ? (isLyricsWide ? 510 : 430)
       : isMicroMode
         ? 96
-        : (isIdleMascot ? 140 : 154);
+        : isCompactKaraokeActive
+          ? 300
+          : (isIdleMascot ? 140 : 154);
 
   const height = isHudActive
     ? 62
@@ -3978,7 +3942,9 @@ export default function Island() {
       ? 150
       : isMicroMode
         ? 5
-        : 32;
+        : isCompactKaraokeActive
+          ? 34
+          : 32;
 
   const cornerRadius = isMicroMode
     ? 6
@@ -4000,7 +3966,7 @@ export default function Island() {
     const hitWidth = isMicroMode ? Math.max(width, 110) : width;
     const hitHeight = isMicroMode ? Math.max(height, 14) : height;
     window.electronAPI.setNotchHitbox(hitWidth, hitHeight, mode === "large", anchorX);
-  }, [mode, isMicroMode, isHudActive, isLyricsWide, width, height]);
+  }, [mode, isMicroMode, isHudActive, isLyricsWide, isCompactKaraokeActive, width, height]);
 
   useEffect(() => {
     if (window.electronAPI?.platform === 'win32') {
@@ -5665,8 +5631,8 @@ export default function Island() {
     const islandEl = document.getElementById("Island");
     const isFocusInsideNotch = islandEl && activeEl && islandEl.contains(activeEl);
 
-    // Keep notch expanded while JARVIS is responding, an input/textarea inside notch is focused, or shelf is active
-    if (isJarvisLoading || (isInputFocused && isFocusInsideNotch) || isDragOverShelf) return;
+    // Keep notch expanded while JARVIS is responding, an input/textarea inside notch is focused, shelf is active, or lyrics view is pinned
+    if (isJarvisLoading || (isInputFocused && isFocusInsideNotch) || isDragOverShelf || (mode === "large" && currentTab === 3 && lyricsPinned)) return;
 
     setHoverState(false);
     updateMouseIgnore(true, true);
@@ -5698,6 +5664,9 @@ export default function Island() {
   }, [
     isJarvisLoading,
     isDragOverShelf,
+    mode,
+    currentTab,
+    lyricsPinned,
     notificationAlert,
     standbyBorderEnabled,
     largeStandbyEnabled,
@@ -6263,6 +6232,149 @@ export default function Island() {
               >
                 <div style={{ width: 48, height: 2, borderRadius: 1, background: 'rgba(255, 255, 255, 0.4)' }} />
               </div>
+            ) : isCompactKaraokeActive ? (
+              /* Compact Karaoke Notch (300x34): Live Sing-Along Ticker */
+              <div
+                className="notch-stage optical-blur-in"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0 8px 0 6px',
+                  boxSizing: 'border-box',
+                  userSelect: 'none',
+                  position: 'relative'
+                }}
+              >
+                {/* Left: Album Artwork (22x22) with living aura */}
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMode("large");
+                    setTabState([3, 1]);
+                  }}
+                  title="Click to open full player"
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    background: '#1e293b',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid rgba(255,255,255,0.12)'
+                  }}
+                >
+                  {spotifyTrack?.artwork_url ? (
+                    <img src={spotifyTrack.artwork_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <Music size={12} color="#38bdf8" />
+                  )}
+                </div>
+
+                {/* Center: Live Kinetic Lyric Line (Crossfade & Spring Float) */}
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: '0 8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMode("large");
+                    setTabState([3, 1]);
+                    setLyricsOpen(true);
+                  }}
+                  title="Live Lyric (Click to expand)"
+                >
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    <motion.div
+                      key={effectiveLyrics?.length > 0 ? findActiveLyricIndex(effectiveLyrics, mediaPosition) : (lyricsLoading ? 'loading' : 'track-info')}
+                      initial={{ opacity: 0, y: 6, filter: 'blur(3px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -6, filter: 'blur(3px)' }}
+                      transition={{ type: "spring", stiffness: 450, damping: 25 }}
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: '#ffffff',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        textAlign: 'center',
+                        width: '100%',
+                        cursor: 'pointer',
+                        textShadow: '0 0 10px rgba(56, 189, 248, 0.45)'
+                      }}
+                    >
+                      {effectiveLyrics?.length > 0
+                        ? (effectiveLyrics[findActiveLyricIndex(effectiveLyrics, mediaPosition)]?.text || spotifyTrack?.name || "Singing…")
+                        : lyricsLoading
+                          ? "🎵 Searching lyrics…"
+                          : `${spotifyTrack?.name || 'Now Playing'}${spotifyTrack?.artist ? ' • ' + spotifyTrack.artist : ''}`
+                      }
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
+                {/* Right: Tactile Play/Pause & Exit to Clock Pill Toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <motion.button
+                    whileHover={{ scale: 1.15 }}
+                    whileTap={{ scale: 0.85, scaleY: 0.8 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      lastMediaActionRef.current = Date.now();
+                      window.electronAPI?.controlSystemMedia?.('playPause');
+                    }}
+                    title={isPlaying ? "Pause" : "Play"}
+                    style={{
+                      background: 'rgba(255,255,255,0.14)',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: 20,
+                      height: 20,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#ffffff'
+                    }}
+                  >
+                    {isPlaying ? <Pause size={10} fill="#ffffff" /> : <Play size={10} fill="#ffffff" style={{ marginLeft: 1 }} />}
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.15 }}
+                    whileTap={{ scale: 0.85 }}
+                    onClick={handleToggleCompactKaraoke}
+                    title="Switch back to Clock notch"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      color: '#38bdf8'
+                    }}
+                  >
+                    <MessageSquare size={13} fill="#38bdf8" />
+                  </motion.button>
+                </div>
+              </div>
             ) : isIdleMascot ? (
               /* Mascot Idle Mode (140x32): Glowing White Pill Eyes + Purple-Blue Glow */
               <div className="notch-stage notch-stage-idle-mascot optical-blur-in">
@@ -6299,8 +6411,32 @@ export default function Island() {
                   </span>
                 </div>
 
-                {/* Right: 5-Bar Live Equalizer Waveform */}
-                <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                {/* Right: 5-Bar Live Equalizer Waveform & Quick Karaoke Toggle Button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  {isPlaying && effectiveLyrics && effectiveLyrics.length > 0 && (
+                    <motion.button
+                      whileHover={{ scale: 1.15 }}
+                      whileTap={{ scale: 0.88 }}
+                      onClick={handleToggleCompactKaraoke}
+                      title="Switch notch to live lyric karaoke ticker"
+                      style={{
+                        background: 'rgba(56, 189, 248, 0.18)',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        borderRadius: 10,
+                        padding: '1px 5px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        cursor: 'pointer',
+                        color: '#38bdf8',
+                        fontSize: 9,
+                        fontWeight: 700
+                      }}
+                    >
+                      <MessageSquare size={9} />
+                      <span>LRC</span>
+                    </motion.button>
+                  )}
                   <MiniWaveform isPlaying={isPlaying} />
                 </div>
               </div>
@@ -6373,8 +6509,8 @@ export default function Island() {
                   const pos = typeof mediaPosition === 'number' && !isNaN(mediaPosition) ? Math.max(0, mediaPosition) : 0;
                   const remaining = Math.max(0, duration - pos);
 
-                  const currentLyricIdx = (syncedLyrics && syncedLyrics.length > 0)
-                    ? syncedLyrics.reduce((best, cur, idx) => (pos >= cur.time ? idx : best), 0)
+                  const currentLyricIdx = (effectiveLyrics && effectiveLyrics.length > 0)
+                    ? findActiveLyricIndex(effectiveLyrics, pos)
                     : 0;
 
                   return (
@@ -6594,31 +6730,53 @@ export default function Island() {
                               </span>
                             </div>
 
-                            {/* Compact controls with 💬 toggle */}
+                            {/* Compact controls with 💬 toggle and Island Karaoke Switch */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 1 }}>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setLyricsOpen(false);
-                                }}
-                                title="Close Lyrics Split View"
-                                style={{
-                                  background: 'rgba(34, 197, 94, 0.22)',
-                                  border: '1px solid rgba(34, 197, 94, 0.45)',
-                                  borderRadius: 6,
-                                  padding: '2px 7px',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  color: '#22c55e',
-                                  fontSize: 10,
-                                  fontWeight: 600
-                                }}
-                              >
-                                <MessageSquare size={11} />
-                                <span>Lyrics</span>
-                              </button>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLyricsOpen(false);
+                                  }}
+                                  title="Close Lyrics Split View"
+                                  style={{
+                                    background: 'rgba(34, 197, 94, 0.22)',
+                                    border: '1px solid rgba(34, 197, 94, 0.45)',
+                                    borderRadius: 6,
+                                    padding: '2px 7px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    color: '#22c55e',
+                                    fontSize: 10,
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  <MessageSquare size={11} />
+                                  <span>Lyrics</span>
+                                </button>
+                                <button
+                                  onClick={handleToggleCompactKaraoke}
+                                  title="Toggle live singing lyrics in compact notch mode"
+                                  style={{
+                                    background: compactKaraokeEnabled ? 'rgba(56, 189, 248, 0.22)' : 'rgba(255, 255, 255, 0.08)',
+                                    border: `1px solid ${compactKaraokeEnabled ? 'rgba(56, 189, 248, 0.45)' : 'rgba(255, 255, 255, 0.15)'}`,
+                                    borderRadius: 6,
+                                    padding: '2px 6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                    color: compactKaraokeEnabled ? '#38bdf8' : 'rgba(255,255,255,0.65)',
+                                    fontSize: 9,
+                                    fontWeight: 700
+                                  }}
+                                >
+                                  <Sparkles size={10} />
+                                  <span>Notch: {compactKaraokeEnabled ? "ON" : "OFF"}</span>
+                                </button>
+                              </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <motion.button
                                   whileHover={{ scale: 1.15 }}
@@ -6668,15 +6826,15 @@ export default function Island() {
                                   <SkipForwardIcon size={13} fill="#ffffff" />
                                 </motion.button>
                               </div>
-                              <div style={{ width: 13 }} />
+                              <div style={{ width: 6 }} />
                             </div>
                           </div>
 
-                          {/* Right Column (55%): Vertical Scrolling Synced Lyrics Stage or Clean Dimmed Empty State */}
+                          {/* Right Column (55%): Apple Music Kinetic Typography Stage with Depth Blur & Manual Search */}
                           <div
                             style={{
                               width: '55%',
-                              height: 118,
+                              height: 122,
                               position: 'relative',
                               overflow: 'hidden',
                               display: 'flex',
@@ -6686,11 +6844,223 @@ export default function Island() {
                               paddingLeft: 8
                             }}
                           >
-                            {lyricsLoading ? (
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.6 }}>
-                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Loading lyrics…</span>
+                            {/* Top Micro Header: Source Tag + Timing Offset Pill + Manual Search Toggle */}
+                            <div style={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              zIndex: 10,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                              {lyricsSource && (
+                                <span style={{
+                                  fontSize: 8,
+                                  color: 'rgba(255,255,255,0.4)',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.04em',
+                                  padding: '1px 4px',
+                                  borderRadius: 4,
+                                  background: 'rgba(255,255,255,0.06)'
+                                }}>
+                                  {lyricsSource.replace('lrclib-', '')}
+                                </span>
+                              )}
+
+                              {/* Timing Offset Calibrator (-0.5s / +0.5s) */}
+                              {effectiveLyrics && effectiveLyrics.length > 0 && (
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  background: 'rgba(0,0,0,0.4)',
+                                  border: '1px solid rgba(255,255,255,0.1)',
+                                  borderRadius: 8,
+                                  overflow: 'hidden'
+                                }}>
+                                  <button
+                                    onClick={() => setLyricOffset(prev => Math.round((prev - 0.5) * 10) / 10)}
+                                    title="Advance lyrics by -0.5s"
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: 'rgba(255,255,255,0.6)',
+                                      fontSize: 8.5,
+                                      padding: '1px 4px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    -0.5s
+                                  </button>
+                                  <button
+                                    onClick={() => setLyricOffset(0)}
+                                    title="Reset offset to 0s"
+                                    style={{
+                                      background: lyricOffset !== 0 ? 'rgba(56, 189, 248, 0.25)' : 'none',
+                                      border: 'none',
+                                      color: lyricOffset !== 0 ? '#38bdf8' : 'rgba(255,255,255,0.4)',
+                                      fontSize: 8.5,
+                                      fontWeight: 700,
+                                      padding: '1px 4px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {lyricOffset === 0 ? '0s' : `${lyricOffset > 0 ? '+' : ''}${lyricOffset}s`}
+                                  </button>
+                                  <button
+                                    onClick={() => setLyricOffset(prev => Math.round((prev + 0.5) * 10) / 10)}
+                                    title="Delay lyrics by +0.5s"
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: 'rgba(255,255,255,0.6)',
+                                      fontSize: 8.5,
+                                      padding: '1px 4px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    +0.5s
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Manual Search Icon Toggle */}
+                              <button
+                                onClick={() => {
+                                  setShowManualSearch(prev => !prev);
+                                  if (!showManualSearch) {
+                                    setManualTitleInput(cleanTrackTitle(spotifyTrack?.name || ''));
+                                    setManualArtistInput(cleanArtistName(spotifyTrack?.artist || ''));
+                                  }
+                                }}
+                                title="Search lyrics manually"
+                                style={{
+                                  background: showManualSearch ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255,255,255,0.08)',
+                                  border: '1px solid rgba(255,255,255,0.1)',
+                                  borderRadius: 8,
+                                  padding: '2px 5px',
+                                  color: showManualSearch ? '#38bdf8' : 'rgba(255,255,255,0.6)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                <Search size={10} />
+                              </button>
+
+                              {/* Tactile Pin Lyrics Toggle */}
+                              <button
+                                onClick={() => setLyricsPinned(prev => !prev)}
+                                title={lyricsPinned ? "Lyrics pinned (stays open)" : "Pin lyrics (prevents auto-collapse)"}
+                                style={{
+                                  background: lyricsPinned ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255,255,255,0.08)',
+                                  border: lyricsPinned ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255,255,255,0.1)',
+                                  borderRadius: 8,
+                                  padding: '2px 5px',
+                                  color: lyricsPinned ? '#38bdf8' : 'rgba(255,255,255,0.6)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                <Pin size={10} style={{ transform: lyricsPinned ? 'rotate(0deg)' : 'rotate(45deg)', transition: 'transform 0.2s' }} />
+                              </button>
+                            </div>
+
+                            {/* Manual Search Floating Row */}
+                            {showManualSearch ? (
+                              <div style={{
+                                width: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 4,
+                                padding: '8px 4px',
+                                boxSizing: 'border-box'
+                              }}>
+                                <div style={{ fontSize: 9.5, fontWeight: 700, color: '#38bdf8' }}>Manual Lyrics Search:</div>
+                                <input
+                                  type="text"
+                                  value={manualTitleInput}
+                                  onChange={(e) => setManualTitleInput(e.target.value)}
+                                  placeholder="Track title"
+                                  style={{
+                                    background: 'rgba(0,0,0,0.5)',
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    borderRadius: 6,
+                                    padding: '3px 6px',
+                                    color: '#ffffff',
+                                    fontSize: 10,
+                                    outline: 'none'
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={manualArtistInput}
+                                  onChange={(e) => setManualArtistInput(e.target.value)}
+                                  placeholder="Artist name"
+                                  style={{
+                                    background: 'rgba(0,0,0,0.5)',
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    borderRadius: 6,
+                                    padding: '3px 6px',
+                                    color: '#ffffff',
+                                    fontSize: 10,
+                                    outline: 'none'
+                                  }}
+                                />
+                                <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                                  <button
+                                    onClick={() => {
+                                      if (manualTitleInput.trim()) {
+                                        setManualSearchQuery({
+                                          title: manualTitleInput.trim(),
+                                          artist: manualArtistInput.trim()
+                                        });
+                                        setShowManualSearch(false);
+                                      }
+                                    }}
+                                    style={{
+                                      flex: 1,
+                                      background: '#38bdf8',
+                                      color: '#000000',
+                                      border: 'none',
+                                      borderRadius: 6,
+                                      padding: '3px 0',
+                                      fontWeight: 700,
+                                      fontSize: 10,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    Search
+                                  </button>
+                                  <button
+                                    onClick={() => setShowManualSearch(false)}
+                                    style={{
+                                      background: 'rgba(255,255,255,0.1)',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      borderRadius: 6,
+                                      padding: '3px 8px',
+                                      fontSize: 10,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
                               </div>
-                            ) : syncedLyrics && syncedLyrics.length > 0 ? (
+                            ) : lyricsLoading ? (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.7 }}>
+                                <motion.div
+                                  animate={{ rotate: 360 }}
+                                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                                  style={{ marginRight: 6 }}
+                                >
+                                  <RefreshCw size={12} color="#38bdf8" />
+                                </motion.div>
+                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>Syncing lyrics…</span>
+                              </div>
+                            ) : effectiveLyrics && effectiveLyrics.length > 0 ? (
                               <div
                                 style={{
                                   height: '100%',
@@ -6699,19 +7069,22 @@ export default function Island() {
                                   display: 'flex',
                                   flexDirection: 'column',
                                   justifyContent: 'center',
-                                  maskImage: 'linear-gradient(to bottom, transparent 0%, black 22%, black 78%, transparent 100%)',
-                                  WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 22%, black 78%, transparent 100%)'
+                                  maskImage: 'linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%)',
+                                  WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%)'
                                 }}
                               >
                                 <div
                                   style={{
-                                    transform: `translateY(${-(currentLyricIdx * 28) + 44}px)`,
-                                    transition: 'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)',
+                                    transform: `translateY(${-(currentLyricIdx * 30) + 44}px)`,
+                                    transition: 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1)',
                                     willChange: 'transform'
                                   }}
                                 >
-                                  {syncedLyrics.map((l, idx) => {
-                                    const isActive = idx === currentLyricIdx;
+                                  {effectiveLyrics.map((l, idx) => {
+                                    const diff = Math.abs(idx - currentLyricIdx);
+                                    const isActive = diff === 0;
+                                    const isNear = diff === 1;
+
                                     return (
                                       <div
                                         key={l.time + l.text + idx}
@@ -6723,25 +7096,38 @@ export default function Island() {
                                         }}
                                         title={`Jump to ${formatTimerMMSS(l.time)}`}
                                         style={{
-                                          height: 28,
+                                          height: 30,
                                           display: 'flex',
                                           alignItems: 'center',
                                           gap: 6,
                                           whiteSpace: 'nowrap',
                                           overflow: 'hidden',
                                           textOverflow: 'ellipsis',
-                                          color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.28)',
-                                          fontSize: isActive ? 13 : 11,
-                                          fontWeight: isActive ? 700 : 400,
-                                          filter: isActive ? 'blur(0px)' : 'blur(0.5px)',
-                                          transform: isActive ? 'scale(1)' : 'scale(0.96)',
+                                          color: isActive ? '#ffffff' : isNear ? 'rgba(255, 255, 255, 0.55)' : 'rgba(255, 255, 255, 0.22)',
+                                          fontSize: isActive ? 13 : isNear ? 11 : 10,
+                                          fontWeight: isActive ? 800 : isNear ? 500 : 400,
+                                          filter: isActive ? 'blur(0px)' : isNear ? 'blur(0.8px)' : 'blur(2px)',
+                                          transform: isActive ? 'scale(1.02)' : 'scale(0.96)',
                                           transformOrigin: 'left center',
-                                          transition: 'all 300ms cubic-bezier(0.22, 1, 0.36, 1)',
-                                          cursor: 'pointer'
+                                          transition: 'all 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                                          cursor: 'pointer',
+                                          textShadow: isActive ? '0 0 12px rgba(56, 189, 248, 0.6), 0 0 24px rgba(34, 197, 94, 0.2)' : 'none'
                                         }}
                                       >
-                                        {isActive && <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />}
-                                        <span>{l.text}</span>
+                                        {isActive && (
+                                          <motion.div
+                                            layoutId="active-lyric-dot"
+                                            style={{
+                                              width: 5,
+                                              height: 5,
+                                              borderRadius: '50%',
+                                              background: '#38bdf8',
+                                              boxShadow: '0 0 8px #38bdf8',
+                                              flexShrink: 0
+                                            }}
+                                          />
+                                        )}
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.text}</span>
                                       </div>
                                     );
                                   })}
@@ -6761,13 +7147,13 @@ export default function Island() {
                                 }}
                               >
                                 <div style={{ fontSize: 9.5, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>
-                                  Lyrics (Unsynced)
+                                  Lyrics (Plain Text)
                                 </div>
                                 {plainLyrics.map((line, idx) => (
                                   <div
                                     key={idx}
                                     style={{
-                                      fontSize: 11.5,
+                                      fontSize: 11,
                                       color: 'rgba(255,255,255,0.7)',
                                       lineHeight: '16px',
                                       whiteSpace: 'pre-wrap'
@@ -6778,31 +7164,55 @@ export default function Island() {
                                 ))}
                               </div>
                             ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, height: '100%', opacity: 0.75 }}>
-                                <Music size={18} color="rgba(255,255,255,0.4)" />
-                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
-                                  No lyrics found for this track
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, height: '100%', opacity: 0.85 }}>
+                                <Music size={16} color="rgba(255,255,255,0.4)" />
+                                <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>
+                                  No lyrics found automatically
                                 </span>
-                                <button
-                                  onClick={handleRetryLyrics}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 5,
-                                    padding: '3px 8px',
-                                    borderRadius: 6,
-                                    background: 'rgba(56, 189, 248, 0.12)',
-                                    border: '1px solid rgba(56, 189, 248, 0.25)',
-                                    color: '#38bdf8',
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    marginTop: 2
-                                  }}
-                                >
-                                  <RefreshCw size={10} />
-                                  <span>Retry Search</span>
-                                </button>
+                                <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                                  <button
+                                    onClick={handleRetryLyrics}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      padding: '3px 8px',
+                                      borderRadius: 6,
+                                      background: 'rgba(56, 189, 248, 0.12)',
+                                      border: '1px solid rgba(56, 189, 248, 0.25)',
+                                      color: '#38bdf8',
+                                      fontSize: 9.5,
+                                      fontWeight: 600,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <RefreshCw size={9} />
+                                    <span>Retry</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setShowManualSearch(true);
+                                      setManualTitleInput(cleanTrackTitle(spotifyTrack?.name || ''));
+                                      setManualArtistInput(cleanArtistName(spotifyTrack?.artist || ''));
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      padding: '3px 8px',
+                                      borderRadius: 6,
+                                      background: 'rgba(34, 197, 94, 0.12)',
+                                      border: '1px solid rgba(34, 197, 94, 0.25)',
+                                      color: '#22c55e',
+                                      fontSize: 9.5,
+                                      fontWeight: 600,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    <Search size={9} />
+                                    <span>Manual Search</span>
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
