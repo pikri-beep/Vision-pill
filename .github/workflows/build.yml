@@ -45,6 +45,9 @@ jobs:
 
       - name: Build Optimized NSIS Installer
         run: npx electron-builder --win --x64 --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 2. Upload Artifacts to Action Run
       - name: Upload Windows Distributables

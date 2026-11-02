@@ -1,6 +1,6 @@
 {
-  "version": "5.7.1",
-  "name": "Quick Pill 5.7.1",
+  "version": "5.7.2",
+  "name": "Quick Pill 5.7.2",
   "releaseDate": "2026-11-02",
   "mandatory": false,
   "minSupportedVersion": "4.0.0",
@@ -14,9 +14,9 @@
   ],
   "platforms": {
     "win32-x64": {
-      "url": "https://github.com/pikri-beep/Vision-pill/releases/download/v5.7.1/QuickPill-Windows-v5.7.1-Setup.exe",
-      "sha256": "43e89ce1c6db479a5df39904c1ef59d236d1990a3d169eb7809cae780c9170ed",
-      "size": 120478450,
+      "url": "https://github.com/pikri-beep/Vision-pill/releases/download/v5.7.2/QuickPill-Windows-v5.7.2-Setup.exe",
+      "sha256": "e7bc5a6c0fd283851d332cf70253374a5e5ce9a7e80247fb7aaeb76539be4edc",
+      "size": 120479946,
       "installerType": "nsis"
     }
   }

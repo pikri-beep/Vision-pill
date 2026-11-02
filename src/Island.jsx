@@ -2818,6 +2818,49 @@ export default function Island() {
   // Notifications currently dissolving into dust (hidden until the registry confirms)
   const [dismissingNotifIds, setDismissingNotifIds] = useState(() => new Set());
 
+  // Auto-dismiss notification alert banner after 3000ms unless hovered or active call
+  useEffect(() => {
+    if (!notificationAlert) {
+      if (notificationAlertTimeout.current) {
+        clearTimeout(notificationAlertTimeout.current);
+        notificationAlertTimeout.current = null;
+      }
+      return;
+    }
+
+    // Voice or video calls should stay visible while ringing
+    if (notificationAlert.isCall) return;
+
+    // While user is actively hovering over the island, pause auto-dismiss
+    if (isHovered || nativeHoverRef.current) {
+      if (notificationAlertTimeout.current) {
+        clearTimeout(notificationAlertTimeout.current);
+        notificationAlertTimeout.current = null;
+      }
+      return;
+    }
+
+    clearTimeout(notificationAlertTimeout.current);
+    notificationAlertTimeout.current = setTimeout(() => {
+      setNotificationAlert(null);
+      if (standbyBorderEnabled) {
+        setMode("quick");
+      } else if (largeStandbyEnabled) {
+        setMode("large");
+      } else {
+        setMode("still");
+      }
+      window.electronAPI?.invalidateWindow?.();
+    }, 3000);
+
+    return () => {
+      if (notificationAlertTimeout.current) {
+        clearTimeout(notificationAlertTimeout.current);
+        notificationAlertTimeout.current = null;
+      }
+    };
+  }, [notificationAlert, isHovered, standbyBorderEnabled, largeStandbyEnabled]);
+
   // Auto-Updater State & Handlers
   const [appVersion, setAppVersion] = useState("5.1.0");
   const [updateStatus, setUpdateStatus] = useState("idle"); // 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
@@ -4878,12 +4921,6 @@ export default function Island() {
           window.electronAPI?.invalidateWindow?.();
           // iOS-style notification chime
           playNotificationSound();
-          clearTimeout(notificationAlertTimeout.current);
-          notificationAlertTimeout.current = setTimeout(() => {
-            setNotificationAlert(null);
-            setMode("still");
-            window.electronAPI?.invalidateWindow?.();
-          }, 4500);
         }
       }
     };
@@ -4919,7 +4956,6 @@ export default function Island() {
       if (typeof unsub === "function") unsub();
       clearTimeout(initialDelay);
       clearInterval(interval);
-      clearTimeout(notificationAlertTimeout.current);
     };
   }, [mode, currentTab]);
 
@@ -5647,7 +5683,8 @@ export default function Island() {
         } else {
           setMode("still");
         }
-      }, 2000);
+        window.electronAPI?.invalidateWindow?.();
+      }, 3000);
       return;
     }
 
