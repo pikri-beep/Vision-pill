@@ -15,8 +15,8 @@
   "platforms": {
     "win32-x64": {
       "url": "https://github.com/pikri-beep/Vision-pill/releases/download/v5.7.2/QuickPill-Windows-v5.7.2-Setup.exe",
-      "sha256": "481f85f60fc591843597beb9c4acc8381f5a6db8ec1956eca3b1ef711bf38acd",
-      "size": 120640403,
+      "sha256": "66f3d8df927f1513d5045089ceece962c6ef2419348af8d01d44133890a14fb3",
+      "size": 120647002,
       "installerType": "nsis"
     }
   }

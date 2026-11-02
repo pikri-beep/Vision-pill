@@ -52,6 +52,15 @@ jobs:
       - name: Generate Accurate Release Manifest
         run: node scripts/generate-manifest.js
 
+      - name: Commit Manifest Back to Repo
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add "web app/public/version.json"
+          git commit -m "chore(release): sync manifest checksum for v${{ steps.pkg.outputs.version }} [skip ci]" || echo "No changes to commit"
+          git push origin HEAD:${{ github.ref }} || echo "Push failed or already up to date"
+
       # 2. Upload Artifacts to Action Run
       - name: Upload Windows Distributables
         uses: actions/upload-artifact@v4
