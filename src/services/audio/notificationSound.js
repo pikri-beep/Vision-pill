@@ -18,6 +18,8 @@ export const SOUND_STORAGE_KEYS = {
 export const DEFAULT_SOUND_PRESET = "ios";
 export const DEFAULT_SOUND_VOLUME = 0.6;
 
+const SPARKLE_CHIME_URL = new URL("../../assets/sounds/sparkle-chime.mp3", import.meta.url).href;
+
 export const SOUND_PRESETS = [
   {
     id: "ios",
@@ -40,6 +42,12 @@ export const SOUND_PRESETS = [
     description: "Crisp digital ping for a distraction free workflow",
   },
   {
+    id: "sparkle",
+    name: "Sparkle Chime",
+    description: "Bright ascending chime with a soft dreamy tail",
+    audioUrl: SPARKLE_CHIME_URL,
+  },
+  {
     id: "silent",
     name: "Silent",
     description: "Keep the visual notification but skip the audio",
@@ -47,8 +55,10 @@ export const SOUND_PRESETS = [
 ];
 
 const PRESET_IDS = SOUND_PRESETS.map((preset) => preset.id);
+const PRESETS_BY_ID = new Map(SOUND_PRESETS.map((preset) => [preset.id, preset]));
 
 let sharedContext = null;
+let activeAudio = null;
 
 function getStorage(explicit) {
   if (explicit) return explicit;
@@ -230,6 +240,61 @@ const PRESET_PLAYERS = {
   silent: () => {},
 };
 
+function stopActiveAudio() {
+  if (!activeAudio) return;
+  try {
+    activeAudio.pause();
+    activeAudio.currentTime = 0;
+  } catch (_) {
+    /* ignore audio cleanup errors */
+  }
+  activeAudio = null;
+}
+
+function getAudioConstructor() {
+  if (typeof window !== "undefined" && typeof window.Audio === "function") {
+    return window.Audio;
+  }
+  if (typeof Audio === "function") {
+    return Audio;
+  }
+  return null;
+}
+
+function playAudioFile(url, volume) {
+  const AudioCtor = getAudioConstructor();
+  if (!AudioCtor || !url) return false;
+
+  stopActiveAudio();
+
+  try {
+    const audio = new AudioCtor(url);
+    audio.volume = volume;
+    activeAudio = audio;
+
+    const cleanup = () => {
+      if (activeAudio === audio) activeAudio = null;
+    };
+    if (typeof audio.addEventListener === "function") {
+      audio.addEventListener("ended", cleanup, { once: true });
+      audio.addEventListener("error", cleanup, { once: true });
+    }
+
+    const playResult = audio.play();
+    if (playResult && typeof playResult.catch === "function") {
+      playResult.catch((err) => {
+        cleanup();
+        console.error("[Quick Pill] Failed to play audio file preset:", err);
+      });
+    }
+    return true;
+  } catch (err) {
+    stopActiveAudio();
+    console.error("[Quick Pill] Failed to play audio file preset:", err);
+    return false;
+  }
+}
+
 /**
  * Play a notification sound.
  * @param {object} [options]
@@ -247,6 +312,13 @@ export function playNotificationSound(options = {}) {
   const presetId = PRESET_IDS.includes(options.preset) ? options.preset : settings.preset;
   const volume = normalizeVolume(options.volume ?? settings.volume);
   if (volume <= 0) return false;
+
+  const preset = PRESETS_BY_ID.get(presetId);
+  if (preset && preset.audioUrl) {
+    return playAudioFile(preset.audioUrl, volume);
+  }
+
+  stopActiveAudio();
 
   const player = PRESET_PLAYERS[presetId];
   if (!player) return false;
@@ -280,16 +352,26 @@ export function playNotificationSound(options = {}) {
  */
 export function playCallSound(options = {}) {
   const settings = getNotificationSoundSettings();
-  if (!settings.enabled) return false;
+  const enabled = options.enabled ?? settings.enabled;
+  if (!enabled) return false;
 
   const presetId = PRESET_IDS.includes(options.preset) ? options.preset : settings.preset;
+  const volume = normalizeVolume(options.volume ?? settings.volume);
+  if (volume <= 0) return false;
+
+  const preset = PRESETS_BY_ID.get(presetId);
+  if (preset && preset.audioUrl) {
+    return playAudioFile(preset.audioUrl, volume);
+  }
+
+  stopActiveAudio();
+
   const player = PRESET_PLAYERS[presetId] || PRESET_PLAYERS.ios;
   const ctx = getAudioContext();
   if (!ctx) return false;
 
   try {
     const master = ctx.createGain();
-    const volume = normalizeVolume(options.volume ?? settings.volume);
     master.gain.setValueAtTime(volume * 0.9, ctx.currentTime);
     master.connect(ctx.destination);
 

@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
+const fs = require("node:fs");
+const { fileURLToPath } = require("node:url");
 
 /* ------------------------------------------------------------------ *
  * Minimal DOM stub so the renderer side services can be exercised
@@ -141,6 +143,133 @@ test("notification sound - degrades gracefully without Web Audio support", async
   assert.strictEqual(sound.playNotificationSound({ enabled: true, preset: "ios" }), false);
   assert.strictEqual(sound.playNotificationSound({ enabled: false }), false);
   assert.strictEqual(sound.playNotificationSound({ enabled: true, preset: "ios", volume: 0 }), false);
+});
+
+test("notification sound - includes sparkle audio-file preset with bundled mp3 and keeps iOS default", async () => {
+  const { sound } = await loadModules();
+  assert.strictEqual(sound.DEFAULT_SOUND_PRESET, "ios");
+
+  const sparkle = sound.SOUND_PRESETS.find((p) => p.id === "sparkle");
+  assert.ok(sparkle, "sparkle preset should exist in SOUND_PRESETS");
+  assert.ok(sparkle.name && sparkle.description, "sparkle preset needs name and description");
+  assert.strictEqual(typeof sparkle.audioUrl, "string", "sparkle preset should expose an audioUrl");
+  assert.ok(sparkle.audioUrl.endsWith(".mp3"), "sparkle audioUrl should point to an mp3 file");
+
+  const filePath = fileURLToPath(sparkle.audioUrl);
+  assert.strictEqual(fs.existsSync(filePath), true, `bundled audio asset must exist at ${filePath}`);
+  assert.ok(fs.statSync(filePath).size > 0, "bundled audio asset must not be empty");
+});
+
+test("notification sound - persists and reloads sparkle preset", async () => {
+  const { sound } = await loadModules();
+  const storage = createFakeStorage();
+  const saved = sound.setNotificationSoundSettings({ preset: "sparkle" }, storage);
+  assert.strictEqual(saved.preset, "sparkle");
+
+  const reloaded = sound.getNotificationSoundSettings(storage);
+  assert.strictEqual(reloaded.preset, "sparkle");
+});
+
+test("notification sound - plays audio-file preset with volume and stops previous playback", async () => {
+  const { sound } = await loadModules();
+  const instances = [];
+
+  class FakeAudio {
+    constructor(src) {
+      this.src = src;
+      this.volume = 1;
+      this.currentTime = 0;
+      this.playCalls = 0;
+      this.pauseCalls = 0;
+      instances.push(this);
+    }
+    play() {
+      this.playCalls += 1;
+      this.currentTime = 1.2;
+      return Promise.resolve();
+    }
+    pause() {
+      this.pauseCalls += 1;
+    }
+  }
+
+  const prevAudio = global.window.Audio;
+  global.window.Audio = FakeAudio;
+  try {
+    assert.strictEqual(sound.playNotificationSound({ enabled: false, preset: "sparkle" }), false);
+    assert.strictEqual(sound.playNotificationSound({ enabled: true, preset: "sparkle", volume: 0 }), false);
+    assert.strictEqual(instances.length, 0);
+
+    const playedFirst = sound.playNotificationSound({ enabled: true, preset: "sparkle", volume: 0.45 });
+    assert.strictEqual(playedFirst, true);
+    assert.strictEqual(instances.length, 1);
+    assert.ok(instances[0].src.endsWith(".mp3"));
+    assert.strictEqual(instances[0].volume, 0.45);
+    assert.strictEqual(instances[0].playCalls, 1);
+
+    const playedSecond = sound.playNotificationSound({ enabled: true, preset: "sparkle", volume: 0.8 });
+    assert.strictEqual(playedSecond, true);
+    assert.strictEqual(instances[0].pauseCalls, 1);
+    assert.strictEqual(instances[0].currentTime, 0);
+    assert.strictEqual(instances.length, 2);
+    assert.strictEqual(instances[1].volume, 0.8);
+    assert.strictEqual(instances[1].playCalls, 1);
+
+    // Switching to silent should also stop any active audio preview
+    sound.playNotificationSound({ enabled: true, preset: "silent" });
+    assert.strictEqual(instances[1].pauseCalls, 1);
+    assert.strictEqual(instances[1].currentTime, 0);
+  } finally {
+    if (prevAudio === undefined) delete global.window.Audio;
+    else global.window.Audio = prevAudio;
+  }
+});
+
+test("notification sound - degrades gracefully without Audio API for audio-file preset", async () => {
+  const { sound } = await loadModules();
+  const prevAudio = global.window.Audio;
+  delete global.window.Audio;
+  try {
+    assert.strictEqual(sound.playNotificationSound({ enabled: true, preset: "sparkle", volume: 0.6 }), false);
+  } finally {
+    if (prevAudio !== undefined) global.window.Audio = prevAudio;
+  }
+});
+
+test("notification sound - playCallSound plays audio-file preset cleanly", async () => {
+  const { sound } = await loadModules();
+  const instances = [];
+
+  class FakeAudio {
+    constructor(src) {
+      this.src = src;
+      this.volume = 1;
+      this.currentTime = 0;
+      this.playCalls = 0;
+      this.pauseCalls = 0;
+      instances.push(this);
+    }
+    play() {
+      this.playCalls += 1;
+      return Promise.resolve();
+    }
+    pause() {
+      this.pauseCalls += 1;
+    }
+  }
+
+  const prevAudio = global.window.Audio;
+  global.window.Audio = FakeAudio;
+  try {
+    const played = sound.playCallSound({ preset: "sparkle", volume: 0.7 });
+    assert.strictEqual(played, true);
+    assert.strictEqual(instances.length, 1);
+    assert.strictEqual(instances[0].volume, 0.7);
+    assert.strictEqual(instances[0].playCalls, 1);
+  } finally {
+    if (prevAudio === undefined) delete global.window.Audio;
+    else global.window.Audio = prevAudio;
+  }
 });
 
 /* ---------------------------- Dust tests ----------------------------- */

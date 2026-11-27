@@ -5,12 +5,8 @@
   "mandatory": false,
   "minSupportedVersion": "4.0.0",
   "changelog": [
-    "Feature: Vision Pill Funimated Upgrade - Interactive cartoon physics and tactile spring dynamics across all modules.",
-    "Feature: Liquid Battery Hub - 3-layer parallax fluid sine waves, rising micro-bubbles, charging neon lightning, and low-battery warning tremor.",
-    "Feature: Shelf Puddle Ripple Engine - concentric puddle shockwave rings, upward parabolic splash droplets, and buoyant file cards.",
-    "Feature: Obsidian Visor-Cat Mascot with volume-preserving squash & stretch, spring cursor gaze tracking, and SVG starburst particles.",
-    "Feature: Pomodoro Cardiac Glow Ring, elastic CPU/RAM gauges with live beacon dots, tactile clipboard checkmark pop, and bouncy calendar cells.",
-    "Stability: Pure Electron runtime with zero WebView2 dependencies and 100% passing test coverage."
+    "Feature: Added new 'Sparkle Chime' notification sound preset in Settings > Sound & Alerts with full audio-file playback, volume control, and preview support.",
+    "Improvement: Switching notification sound presets or testing sounds cleanly stops any previously playing chime to prevent audio overlap."
   ],
   "platforms": {
     "win32-x64": {
