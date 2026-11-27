@@ -85,10 +85,9 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            dist/*.exe
+            dist/QuickPill-Windows-v${{ steps.pkg.outputs.version }}-Setup.exe
             dist/version.json
-            web app/public/version.json
-            out/make/**/*.exe
+            out/make/**/QuickPill-Windows-v${{ steps.pkg.outputs.version }}.exe
             out/make/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
